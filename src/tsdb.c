@@ -78,7 +78,7 @@ void SeriesTrim(Series *series) {
             // go to first element that is bigger than current key
             RedisModule_DictIteratorReseekC(iter, ">", currentKey, keyLen);
 
-            series->totalSamples -= series->funcs->GetNumOfSample(currentChunk);
+            series->totalSamples -= GetNumOfSample(currentChunk);
             series->funcs->FreeChunk(currentChunk);
         } else {
             break;
@@ -258,7 +258,7 @@ int SeriesUpsertSample(Series *series, api_timestamp_t timestamp, double value) 
     void *chunkKey = NULL;
     ChunkFuncs *funcs = series->funcs;
     Chunk_t *chunk = series->lastChunk;
-    timestamp_t chunkFirstTS = funcs->GetFirstTimestamp(series->lastChunk);
+    timestamp_t chunkFirstTS = GetFirstTimestamp(series->lastChunk);
 
     if (timestamp < chunkFirstTS && RedisModule_DictSize(series->chunks) > 1) {
         // Upsert in an older chunk
@@ -276,16 +276,16 @@ int SeriesUpsertSample(Series *series, api_timestamp_t timestamp, double value) 
         if (chunkKey == NULL) {
             return REDISMODULE_ERR;
         }
-        chunkFirstTS = funcs->GetFirstTimestamp(chunk);
+        chunkFirstTS = GetFirstTimestamp(chunk);
     }
 
     // Split chunks
-    if (funcs->GetChunkSize(chunk, false) > series->chunkSizeBytes * SPLIT_FACTOR) {
+    if (series->funcs->GetChunkSize(chunk, false) > series->chunkSizeBytes * SPLIT_FACTOR) {
         Chunk_t *newChunk = funcs->SplitChunk(chunk);
         if (newChunk == NULL) {
             return REDISMODULE_ERR;
         }
-        timestamp_t newChunkFirstTS = funcs->GetFirstTimestamp(newChunk);
+        timestamp_t newChunkFirstTS = GetFirstTimestamp(newChunk);
         dictOperator(series->chunks, newChunk, newChunkFirstTS, DICT_OP_SET);
         if (timestamp >= newChunkFirstTS) {
             chunk = newChunk;
@@ -309,7 +309,7 @@ int SeriesUpsertSample(Series *series, api_timestamp_t timestamp, double value) 
         if (timestamp == series->lastTimestamp) {
             series->lastValue = value;
         }
-        timestamp_t chunkFirstTSAfterOp = funcs->GetFirstTimestamp(uCtx.inChunk);
+        timestamp_t chunkFirstTSAfterOp = GetFirstTimestamp(uCtx.inChunk);
         if (chunkFirstTSAfterOp != chunkFirstTS) {
             // update chunk in dictionary if first timestamp changed
             if (dictOperator(series->chunks, NULL, chunkFirstTS, DICT_OP_DEL) == REDISMODULE_ERR) {
@@ -400,7 +400,7 @@ ChunkResult SeriesIteratorGetNext(SeriesIterator *iterator, Sample *currentSampl
         res = iterator->GetNext(iterator->chunkIterator, currentSample);
         if (res == CR_END) { // Reached the end of the chunk
             if (!iterator->DictGetNext(iterator->dictIter, NULL, (void *)&currentChunk) ||
-                funcs->GetFirstTimestamp(currentChunk) > iterator->maxTimestamp ||
+                GetFirstTimestamp(currentChunk) > iterator->maxTimestamp ||
                 funcs->GetLastTimestamp(currentChunk) < iterator->minTimestamp) {
                 return CR_END; // No more chunks or they out of range
             }

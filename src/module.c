@@ -607,10 +607,10 @@ int ReplySeriesRange(RedisModuleCtx *ctx,
     } else {
         bool firstSample = TRUE;
         context = aggObject->createContext();
+        ChunkFuncs *funcs = GetChunkFuncs(iterator.currentChunk);
         // setting the first timestamp of the aggregation
-        timestamp_t init_ts = (rev == false)
-                                  ? series->funcs->GetFirstTimestamp(iterator.currentChunk)
-                                  : series->funcs->GetLastTimestamp(iterator.currentChunk);
+        timestamp_t init_ts = (rev == false) ? funcs->GetFirstTimestamp(iterator.currentChunk)
+                                             : funcs->GetLastTimestamp(iterator.currentChunk);
         last_agg_timestamp = init_ts - (init_ts % time_delta);
 
         while (SeriesIteratorGetNext(&iterator, &sample) == CR_OK &&

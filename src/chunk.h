@@ -11,10 +11,8 @@
 #include <sys/types.h>
 
 typedef struct Chunk {
-    timestamp_t base_timestamp;
+    Chunk_base base;
     Sample *samples;
-    short num_samples;
-    short size;
 } Chunk;
 
 typedef struct ChunkIterator {

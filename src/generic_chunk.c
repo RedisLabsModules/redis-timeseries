@@ -19,7 +19,6 @@ static ChunkFuncs regChunk = {
     .ChunkIteratorGetPrev = Uncompressed_ChunkIteratorGetPrev,
 
     .GetChunkSize = Uncompressed_GetChunkSize,
-    .GetNumOfSample = Uncompressed_NumOfSample,
     .GetLastTimestamp = Uncompressed_GetLastTimestamp,
     .GetFirstTimestamp = Uncompressed_GetFirstTimestamp,
 
@@ -42,7 +41,6 @@ static ChunkFuncs comprChunk = {
     .ChunkIteratorGetPrev = Uncompressed_ChunkIteratorGetPrev,
 
     .GetChunkSize = Compressed_GetChunkSize,
-    .GetNumOfSample = Compressed_ChunkNumOfSample,
     .GetLastTimestamp = Compressed_GetLastTimestamp,
     .GetFirstTimestamp = Compressed_GetFirstTimestamp,
 

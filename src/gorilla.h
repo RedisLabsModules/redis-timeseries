@@ -24,12 +24,10 @@ typedef union {
 } union64bits;
 
 typedef struct CompressedChunk {
-    u_int64_t size;
-    u_int64_t count;
+    Chunk_base base;
     u_int64_t idx;
 
     union64bits baseValue;
-    u_int64_t baseTimestamp;
 
     u_int64_t *data;
     

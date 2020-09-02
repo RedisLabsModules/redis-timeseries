@@ -242,7 +242,7 @@ static binary_t readBits(binary_t *bins, globalbit_t *bit, u_int8_t dataLen) {
 }
 
 static bool isSpaceAvailable(CompressedChunk *chunk, u_int8_t size) {
-    u_int64_t available = (chunk->size * 8) - chunk->idx;
+    u_int64_t available = (chunk->base.size * 8) - chunk->idx;
     return size <= available;
 }
 
@@ -363,9 +363,9 @@ static ChunkResult appendFloat(CompressedChunk *chunk, double value) {
 ChunkResult Compressed_Append(CompressedChunk *chunk, timestamp_t timestamp, double value) {
     assert(chunk);
 
-    if (chunk->count == 0) {
+    if (chunk->base.numSamples == 0) {
         chunk->baseValue.d = chunk->prevValue.d = value;
-        chunk->baseTimestamp = chunk->prevTimestamp = timestamp;
+        chunk->base.baseTimestamp = chunk->prevTimestamp = timestamp;
         chunk->prevTimestampDelta = 0;
     } else {
         u_int64_t idx = chunk->idx;
@@ -378,7 +378,7 @@ ChunkResult Compressed_Append(CompressedChunk *chunk, timestamp_t timestamp, dou
             return CR_END;
         }
     }
-    chunk->count++;
+    chunk->base.numSamples++;
     return CR_OK;
 }
 
@@ -462,11 +462,11 @@ ChunkResult Compressed_ReadNext(Compressed_Iterator *iter, timestamp_t *timestam
     assert(iter);
     assert(iter->chunk);
 
-    if (iter->count >= iter->chunk->count)
+    if (iter->count >= iter->chunk->base.numSamples)
         return CR_END;
 
     if (iter->count == 0) { // First sample
-        *timestamp = iter->chunk->baseTimestamp;
+        *timestamp = iter->chunk->base.baseTimestamp;
         *value = iter->chunk->baseValue.d;
     } else {
         *timestamp = iter->prevTS = readInteger(iter);

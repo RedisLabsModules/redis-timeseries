@@ -19,7 +19,7 @@ MU_TEST(test_Uncompressed_NewChunk) {
     for (size_t chunk_size = 2; chunk_size < max_chunk_size; chunk_size+=64 ){
         Chunk *chunk = Uncompressed_NewChunk(chunk_size);
         mu_assert(chunk != NULL, "create uncompressed chunk");
-        mu_assert_short_eq(0,chunk->num_samples);
+        mu_assert_short_eq(0,chunk->base.numSamples);
         Uncompressed_FreeChunk(chunk);
     }
 }
@@ -29,7 +29,7 @@ MU_TEST(test_Uncompressed_Uncompressed_AddSample) {
     const size_t chunk_size = 4096; // 4096 bytes (data) chunck
      Chunk *chunk = Uncompressed_NewChunk(chunk_size);
     mu_assert(chunk != NULL, "create uncompressed chunk");
-    mu_assert_short_eq(0,chunk->num_samples);
+    mu_assert_short_eq(0,chunk->base.numSamples);
     ChunkResult rv = CR_OK;
     int64_t ts = 1;
     int64_t total_added_samples = 0;
@@ -42,7 +42,7 @@ MU_TEST(test_Uncompressed_Uncompressed_AddSample) {
         mu_assert(rv == CR_OK || rv == CR_END, "add sample");
         if(rv!=CR_END){
             total_added_samples++;
-            mu_assert_int_eq(total_added_samples,chunk->num_samples);
+            mu_assert_int_eq(total_added_samples,chunk->base.numSamples);
         }
     }
     const size_t chunk_current_size = Uncompressed_GetChunkSize(chunk,false);
@@ -56,7 +56,7 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample) {
     const size_t chunk_size = 4096; // 4096 bytes (data) chunck
      Chunk *chunk = Uncompressed_NewChunk(chunk_size);
     mu_assert(chunk != NULL, "create uncompressed chunk");
-    mu_assert_short_eq(0,chunk->num_samples);
+    mu_assert_short_eq(0,chunk->base.numSamples);
     ChunkResult rv = CR_OK;
     int64_t ts = 1;
     int64_t total_added_samples = 0;
@@ -69,7 +69,7 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample) {
         mu_assert(rv == CR_OK || rv == CR_END, "add sample");
         if(rv!=CR_END){
             total_added_samples++;
-            mu_assert_int_eq(total_added_samples,chunk->num_samples);
+            mu_assert_int_eq(total_added_samples,chunk->base.numSamples);
         }
     }
     const size_t chunk_current_size = Uncompressed_GetChunkSize(chunk,false);
@@ -87,7 +87,7 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample) {
     rv = Uncompressed_UpsertSample(&uCtxS3, &size);
     total_added_samples++;
     mu_assert(rv == CR_OK, "upsert");
-    mu_assert_int_eq(total_added_samples,chunk->num_samples);
+    mu_assert_int_eq(total_added_samples,chunk->base.numSamples);
     Uncompressed_FreeChunk(chunk);
 }
 
