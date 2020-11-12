@@ -11,7 +11,7 @@ Read more about the v1.0 GA features [here](https://redislabs.com/blog/redistime
 
 - High volume inserts, low latency reads
 - Query by start time and end-time
-- Aggregated queries (Min, Max, Avg, Sum, Range, Count, First, Last, STD.P, STD.S, Var.P, Var.S) for any time bucket
+- Aggregated queries (Min, Max, Avg, Sum, Range, Count, First, Last, STD.P, STD.S, Var.P, Var.S, Deriv) for any time bucket
 - Configurable maximum retention period
 - Downsampling/Compaction - automatically updated aggregated timeseries
 - Secondary index - each time series has labels (field value pairs) which will allows to query by labels

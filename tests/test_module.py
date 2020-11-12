@@ -932,6 +932,17 @@ class RedisTimeseriesTests(ModuleTestCase(REDISTIMESERIES)):
             actual_result = r.execute_command('TS.RANGE', agg_key, 10, 50)
             assert expected_result == actual_result
 
+    def test_agg_derivative(self):
+        with self.redis() as r:
+            agg_key = self._insert_agg_data(r, 'tester', 'deriv')
+
+            expected_result = [[10, '184'], [20, '100'], [30, '100'], [40, '100']]
+            actual_result = r.execute_command('TS.RANGE', agg_key, 10, 50)
+            assert expected_result == actual_result
+            expected_result = [[7L, '126'], [14L, '105'], [21L, '62'], [28L, '60'], [35L, '88'], [42L, '-18'], [49L, '61']]
+            actual_result = r.execute_command('TS.RANGE', 'tester', 10, 50, 'AGGREGATION', 'deriv', 7)
+            assert expected_result == actual_result
+
     def test_downsampling_rules(self):
         """
         Test downsmapling rules - avg,min,max,count,sum with 4 keys each.

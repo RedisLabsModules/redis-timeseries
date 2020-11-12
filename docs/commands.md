@@ -189,7 +189,7 @@ TS.CREATERULE sourceKey destKey AGGREGATION aggregationType timeBucket
 
 * sourceKey - Key name for source time series
 * destKey - Key name for destination time series
-* aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s
+* aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s, deriv
 * timeBucket - Time bucket for aggregation in milliseconds
 
 DEST_KEY should be of a `timeseries` type, and should be created before TS.CREATERULE is called.
@@ -238,7 +238,7 @@ TS.REVRANGE key fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregation
 - toTimestamp - End timestamp for range query, `+` can be used to express the maximum possible timestamp.
 
 Optional args:
-* aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s
+* aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s, deriv
 * timeBucket - Time bucket for aggregation in milliseconds
 
 #### Complexity
@@ -288,7 +288,7 @@ TS.MREVRANGE fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregationTyp
 Optional args:
 
 * count - Maximum number of returned results per time-series.
-* aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s
+* aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s, deriv
 * timeBucket - Time bucket for aggregation in milliseconds.
 * WITHLABELS - Include in the reply the label-value pairs that represent metadata labels of the time-series. If this argument is not set, by default, an empty Array will be replied on the labels array position.
 
