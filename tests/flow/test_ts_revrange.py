@@ -51,6 +51,27 @@ def test_revrange():
         assert len(actual_results_rev) == 5
         assert actual_results[0:5] == actual_results_rev[0:5]
 
+        actual_results_rev = r.execute_command('TS.REVRANGE', 'tester1', 0, -1, 'OFFSET', 2)
+        actual_results = r.execute_command('TS.RANGE', 'tester1', 0, -1, 'OFFSET', 2)
+        actual_results.reverse()
+        assert actual_results == actual_results_rev
+
+        # Set the offset to (start+1) % 50, so that it's correct during the aggregation process
+        actual_results = r.execute_command('TS.RANGE', 'tester1', start_ts + 1, -1, 'OFFSET', (start_ts + 1) % 50,
+                                           'AGGREGATION', 'sum', 50)
+        # The revrange offset will be the 'inverse' of the range offset, ie: 50 - range_offset
+        actual_results_rev = r.execute_command('TS.REVRANGE', 'tester1', start_ts + 1, -1, 'OFFSET', (start_ts + 1) % 50,
+                                               'AGGREGATION', 'sum', 50)
+        actual_results.reverse()
+        assert actual_results == actual_results_rev
+
+        actual_results = r.execute_command('TS.RANGE', 'tester1', start_ts + 1, start_ts+41, 'OFFSET', (start_ts + 1) % 5,
+                                           'AGGREGATION', 'sum', 5)
+        actual_results_rev = r.execute_command('TS.REVRANGE', 'tester1', start_ts + 1, start_ts+41, 'OFFSET', (start_ts + 1) % 5,
+                                               'AGGREGATION', 'sum', 5)
+        actual_results.reverse()
+        assert actual_results == actual_results_rev
+
 
 def test_issue400():
     with Env().getConnection() as r:

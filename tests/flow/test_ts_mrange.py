@@ -68,7 +68,7 @@ def test_range_by_labels():
                                                         'class!=middle')
         actual_result = r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'COUNT', 3, 'AGGREGATION',
                                           'LAST', 5, 'FILTER', 'generation=x')
-        assert expected_result[0][2][:3] == actual_result[0][2]
+        assert expected_result[0][2][:3] == actual_result[0][2][:3]
         actual_result = r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'AGGREGATION', 'COUNT', 5,
                                           'FILTER', 'generation=x')
         assert [[1511885905, b'1']] == actual_result[0][2][:1]
@@ -83,6 +83,15 @@ def test_range_by_labels():
                                           'FILTER', 'generation=x')
         assert 18 == len(actual_result[0][2])  # just checking that agg count before count works
 
+        actual_result = r.execute_command('TS.mrange', start_ts+2, -1, 'COUNT', 1, 'OFFSET', 2,
+                                          'FILTER', 'generation=x')
+        assert start_ts + 4==actual_result[0][2][0][0] 
+
+        # Note that we need to have the offset synchronized to the aggregation to allow for consistent offset values.
+        actual_result = r.execute_command('TS.mrange', start_ts+2, -1, 'COUNT', 1, 'OFFSET', (start_ts + 5) % 3,
+                                          'AGGREGATION', 'COUNT', 3, 'FILTER', 'generation=x')
+        assert start_ts + 2 == actual_result[0][2][0][0]
+
         with pytest.raises(redis.ResponseError) as excinfo:
             assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'AGGREGATION', 'invalid', 3,
                                      'FILTER', 'generation=x')
@@ -92,6 +101,11 @@ def test_range_by_labels():
         with pytest.raises(redis.ResponseError) as excinfo:
             assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'COUNT', 'string', 'FILTER',
                                      'generation=x')
+        with pytest.raises(redis.ResponseError) as excinfo:
+            assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'OFFSET', 'string', 'FILTER',
+                                     'generation=x')
+        with pytest.raises(redis.ResponseError) as excinfo:
+            assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'OFFSET', 'FILTER','generation=x')
         with pytest.raises(redis.ResponseError) as excinfo:
             assert r.execute_command('TS.mrange - + FILTER')  # missing args
         with pytest.raises(redis.ResponseError) as excinfo:

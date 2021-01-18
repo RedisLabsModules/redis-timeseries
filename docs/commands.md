@@ -229,8 +229,8 @@ Note: Whenever filters need to be provided, a minimum of one `l=v` filter must b
 Query a range in forward or reverse directions.
 
 ```sql
-TS.RANGE key fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregationType timeBucket]
-TS.REVRANGE key fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregationType timeBucket]
+TS.RANGE key fromTimestamp toTimestamp [COUNT count] [OFFSET offset] [AGGREGATION aggregationType timeBucket]
+TS.REVRANGE key fromTimestamp toTimestamp [COUNT count] [OFFSET offset] [AGGREGATION aggregationType timeBucket]
 ```
 
 - key - Key name for timeseries
@@ -238,6 +238,8 @@ TS.REVRANGE key fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregation
 - toTimestamp - End timestamp for range query, `+` can be used to express the maximum possible timestamp.
 
 Optional args:
+* count - Maximum number of returned results per time-series.
+* offset - Offset the timestamps being returned; allows for the starting value to be set.
 * aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s
 * timeBucket - Time bucket for aggregation in milliseconds
 
@@ -277,8 +279,8 @@ But because m is pretty small, we can neglect it and look at the operation as O(
 Query a range across multiple time-series by filters in forward or reverse directions.
 
 ```sql
-TS.MRANGE fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregationType timeBucket] [WITHLABELS] FILTER filter..
-TS.MREVRANGE fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregationType timeBucket] [WITHLABELS] FILTER filter..
+TS.MRANGE fromTimestamp toTimestamp [COUNT count] [OFFSET offset] [AGGREGATION aggregationType timeBucket] [WITHLABELS] FILTER filter..
+TS.MREVRANGE fromTimestamp toTimestamp [COUNT count] [OFFSET offset] [AGGREGATION aggregationType timeBucket] [WITHLABELS] FILTER filter..
 ```
 
 * fromTimestamp - Start timestamp for the range query. `-` can be used to express the minimum possible timestamp (0).
@@ -288,6 +290,7 @@ TS.MREVRANGE fromTimestamp toTimestamp [COUNT count] [AGGREGATION aggregationTyp
 Optional args:
 
 * count - Maximum number of returned results per time-series.
+* offset - Offset the timestamps being returned; allows for the starting value to be set.
 * aggregationType - Aggregation type: avg, sum, min, max, range, count, first, last, std.p, std.s, var.p, var.s
 * timeBucket - Time bucket for aggregation in milliseconds.
 * WITHLABELS - Include in the reply the label-value pairs that represent metadata labels of the time-series. If this argument is not set, by default, an empty Array will be replied on the labels array position.

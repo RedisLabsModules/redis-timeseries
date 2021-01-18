@@ -39,3 +39,10 @@ def test_mrevrange():
         last_results = last_results[0:3]
         assert r.execute_command('TS.mrevrange', 0, -1, 'AGGREGATION', 'sum', 50, 'COUNT', 3, 'FILTER', 'name=bob')[0][
                    2] == last_results
+
+        agg_result = r.execute_command('TS.mrange', start_ts + 1, -1, 'OFFSET', (start_ts + 1) % 50,
+                                       'AGGREGATION', 'sum', 50, 'FILTER', 'name=bob')[0][2]
+        rev_agg_result = r.execute_command('TS.mrevrange', start_ts + 1, -1, 'OFFSET', (start_ts + 1) % 50,
+                                       'AGGREGATION', 'sum', 50, 'FILTER', 'name=bob')[0][2]
+        rev_agg_result.reverse()
+        assert rev_agg_result == agg_result

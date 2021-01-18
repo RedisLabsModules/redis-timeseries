@@ -19,6 +19,7 @@
 
 #include <ctype.h>
 #include <limits.h>
+#include <stdio.h>
 #include <string.h>
 #include <strings.h>
 #include <time.h>
@@ -39,6 +40,7 @@ static int ReplySeriesRange(RedisModuleCtx *ctx,
                             AggregationClass *aggObject,
                             int64_t time_delta,
                             long long maxResults,
+                            long long time_offset,
                             bool rev);
 
 static void ReplyWithSeriesLabels(RedisModuleCtx *ctx, const Series *series);
@@ -310,6 +312,24 @@ static int parseCountArgument(RedisModuleCtx *ctx,
     return TSDB_OK;
 }
 
+static int parseOffsetArgument(RedisModuleCtx *ctx,
+                               RedisModuleString **argv,
+                               int argc,
+                               long long *time_offset) {
+    int offset = RMUtil_ArgIndex("OFFSET", argv, argc);
+    if (offset > 0) {
+        if (offset + 1 == argc) {
+            RTS_ReplyGeneralError(ctx, "TSDB: OFFSET argument is missing");
+            return TSDB_ERROR;
+        }
+        if (RedisModule_StringToLongLong(argv[offset + 1], time_offset) != REDISMODULE_OK) {
+            RTS_ReplyGeneralError(ctx, "TSDB: Couldn't parse OFFSET");
+            return TSDB_ERROR;
+        }
+    }
+    return TSDB_OK;
+}
+
 int TSDB_info(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     RedisModule_AutoMemory(ctx);
 
@@ -556,6 +576,10 @@ int TSDB_generic_mrange(RedisModuleCtx *ctx, RedisModuleString **argv, int argc,
         return REDISMODULE_ERR;
     }
 
+    long long time_offset = 0;
+    if (parseOffsetArgument(ctx, argv, argc, &time_offset) != REDISMODULE_OK) {
+        return REDISMODULE_ERR;
+    }
     const size_t query_count = argc - 1 - filter_location;
     const int withlabels_location = RMUtil_ArgIndex("WITHLABELS", argv, argc);
     QueryPredicate *queries = RedisModule_PoolAlloc(ctx, sizeof(QueryPredicate) * query_count);
@@ -604,7 +628,8 @@ int TSDB_generic_mrange(RedisModuleCtx *ctx, RedisModuleString **argv, int argc,
         } else {
             RedisModule_ReplyWithArray(ctx, 0);
         }
-        ReplySeriesRange(ctx, series, start_ts, end_ts, aggObject, time_delta, count, rev);
+        ReplySeriesRange(
+            ctx, series, start_ts, end_ts, aggObject, time_delta, count, time_offset, rev);
         replylen++;
         RedisModule_CloseKey(key);
     }
@@ -647,13 +672,18 @@ int TSDB_generic_range(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, 
         return REDISMODULE_ERR;
     }
 
+    long long time_offset = 0;
+    if (parseOffsetArgument(ctx, argv, argc, &time_offset) != REDISMODULE_OK) {
+        return REDISMODULE_ERR;
+    }
+
     AggregationClass *aggObject = NULL;
     int aggregationResult = parseAggregationArgs(ctx, argv, argc, &time_delta, &aggObject);
     if (aggregationResult == TSDB_ERROR) {
         return REDISMODULE_ERR;
     }
 
-    ReplySeriesRange(ctx, series, start_ts, end_ts, aggObject, time_delta, count, rev);
+    ReplySeriesRange(ctx, series, start_ts, end_ts, aggObject, time_delta, count, time_offset, rev);
 
     RedisModule_CloseKey(key);
     return REDISMODULE_OK;
@@ -674,6 +704,7 @@ int ReplySeriesRange(RedisModuleCtx *ctx,
                      AggregationClass *aggObject,
                      int64_t time_delta,
                      long long maxResults,
+                     long long time_offset,
                      bool rev) {
     Sample sample;
     void *context = NULL;
@@ -702,7 +733,7 @@ int ReplySeriesRange(RedisModuleCtx *ctx,
         // No aggregation
         while (SeriesIteratorGetNext(&iterator, &sample) == CR_OK &&
                (maxResults == -1 || arraylen < maxResults)) {
-            ReplyWithSample(ctx, sample.timestamp, sample.value);
+            ReplyWithSample(ctx, sample.timestamp + time_offset, sample.value);
             arraylen++;
         }
     } else {
@@ -712,13 +743,14 @@ int ReplySeriesRange(RedisModuleCtx *ctx,
         timestamp_t init_ts = (rev == false)
                                   ? series->funcs->GetFirstTimestamp(iterator.currentChunk)
                                   : series->funcs->GetLastTimestamp(iterator.currentChunk);
-        last_agg_timestamp = init_ts - (init_ts % time_delta);
 
+        last_agg_timestamp = init_ts - (init_ts % time_delta) + time_offset;
         while (SeriesIteratorGetNext(&iterator, &sample) == CR_OK &&
                (maxResults == -1 || arraylen < maxResults)) {
             if ((iterator.reverse == false &&
-                 sample.timestamp >= last_agg_timestamp + time_delta) ||
-                (iterator.reverse == true && sample.timestamp < last_agg_timestamp)) {
+                 (sample.timestamp + time_offset) >= last_agg_timestamp + time_delta) ||
+                (iterator.reverse == true &&
+                 (sample.timestamp + time_offset) < last_agg_timestamp)) {
                 if (firstSample == FALSE) {
                     double value;
                     if (aggObject->finalize(context, &value) == TSDB_OK) {
@@ -727,7 +759,8 @@ int ReplySeriesRange(RedisModuleCtx *ctx,
                         arraylen++;
                     }
                 }
-                last_agg_timestamp = sample.timestamp - (sample.timestamp % time_delta);
+                last_agg_timestamp =
+                    sample.timestamp - (sample.timestamp % time_delta) + time_offset;
             }
             firstSample = FALSE;
             aggObject->appendValue(context, sample.value);
