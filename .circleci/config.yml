@@ -63,7 +63,12 @@ commands:
           command: |
             mkdir -p ~/workspace/tests
             make test TEST_REPORT_DIR=$HOME/workspace/tests <<parameters.test_params>> SHOW=1
-          
+      - run:
+          name: Gears Cluster Flow Test
+          no_output_timeout: 30m
+          command: |
+            cd tests/flow
+            ./test_with_gears.sh
 
   package:
     steps:
