@@ -85,7 +85,7 @@ commands:
           command: |
             cd ./tests/flow
             python3 -m RLTest --clear-logs --env oss-cluster --shards-count 4 \
-              --module ./bin/redistimeseries.so \
+              --module ../../bin/redistimeseries.so \
               --module /tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so
 
 
