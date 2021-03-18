@@ -131,7 +131,8 @@ static void *QueryPredicates_ArgDeserialize(FlatExecutionPlan *fep,
 
 Record *RedisGears_RedisStringRecordCreate(RedisModuleString *str) {
     size_t len = 0;
-    return RedisGears_StringRecordCreate(strdup(RedisModule_StringPtrLen(str, &len)), len);
+    const char *cstr = RedisModule_StringPtrLen(str, &len);
+    return RedisGears_StringRecordCreate(strndup(cstr, len), len);
 }
 
 Record *ListSeriesLabels(const Series *series) {
@@ -232,7 +233,7 @@ Record *ShardMgetMapper(ExecutionCtx *rctx, Record *data, void *arg) {
 
         Record *key_record = RedisGears_ListRecordCreate(3);
         RedisGears_ListRecordAdd(key_record,
-                                 RedisGears_StringRecordCreate(strdup(currentKey), currentKeyLen));
+                                 RedisGears_StringRecordCreate(strndup(currentKey, currentKeyLen), currentKeyLen));
         if (predicates->withLabels) {
             RedisGears_ListRecordAdd(key_record, ListSeriesLabels(series));
         } else {
@@ -261,7 +262,7 @@ Record *ShardQueryindexMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     Record *series_list = RedisGears_ListRecordCreate(0);
     while ((currentKey = RedisModule_DictNextC(iter, &currentKeyLen, NULL)) != NULL) {
         RedisGears_ListRecordAdd(series_list,
-                                 RedisGears_StringRecordCreate(strdup(currentKey), currentKeyLen));
+                                 RedisGears_StringRecordCreate(strndup(currentKey, currentKeyLen), currentKeyLen));
     }
     RedisModule_DictIteratorStop(iter);
 
