@@ -29,7 +29,7 @@ def test_ooo(self):
             ooo_res = r.execute_command('ts.range', 'ooo', 1000, 1000)
             assert ooo_res[0] == [1000, b'1000']
             last_sample = r.execute_command('ts.get', 'ooo')
-            r.execute_command('ts.add ooo', 1000, 42)
+            r.execute_command('ts.add', 'ooo', 1000, 42)
             ooo_res = r.execute_command('ts.range', 'ooo', 1000, 1000)
             assert ooo_res[0] == [1000, b'42']
             assert last_sample == r.execute_command('ts.get', 'ooo')
