@@ -46,6 +46,7 @@ def test_compressed():
 class testGlobalConfigTests():
 
     def __init__(self):
+        Env().skipOnCluster()
         self.env = Env(moduleArgs='COMPACTION_POLICY max:1m:1d\\;min:10s:1h\\;avg:2h:10d\\;avg:3d:100d')
 
     def test_autocreate(self):
