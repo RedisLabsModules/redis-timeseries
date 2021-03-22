@@ -251,6 +251,7 @@ RedisModuleDict *GetPredicateKeysDict(RedisModuleCtx *ctx, QueryPredicate *predi
             value = RedisModule_StringPtrLen(predicate->valuesList[i], &_s);
             index_key = RedisModule_CreateStringPrintf(ctx, KV_PREFIX, key, value);
             singleEntryLeaf = RedisModule_DictGet(labelsIndex, index_key, &nokey);
+            RedisModule_FreeString(ctx, index_key);
             if (singleEntryLeaf != NULL) {
                 // if there's only 1 item left to fetch from the index we can just return it
                 if (unioned_count == 0 && predicate->valueListCount - i == 1) {
