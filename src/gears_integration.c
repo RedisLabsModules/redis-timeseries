@@ -31,6 +31,7 @@ static void QueryPredicates_ObjectFree(void *arg) {
         for (int value_index = 0; value_index < predicate->valueListCount; value_index++) {
             RedisModule_FreeString(NULL, predicate->valuesList[value_index]);
         }
+        free(predicate->valuesList);
     }
     free(predicate_list->predicates);
 

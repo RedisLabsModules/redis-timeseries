@@ -182,6 +182,7 @@ void _union(RedisModuleCtx *ctx, RedisModuleDict *dest, RedisModuleDict *src) {
     RedisModuleString *currentKey;
     while ((currentKey = RedisModule_DictNext(ctx, iter, NULL)) != NULL) {
         RedisModule_DictSet(dest, currentKey, (void *)1);
+        RedisModule_FreeString(ctx, currentKey);
     }
     RedisModule_DictIteratorStop(iter);
 }
@@ -284,6 +285,7 @@ RedisModuleDict *QueryIndexPredicate(RedisModuleCtx *ctx,
             RedisModuleString *currentKey;
             while ((currentKey = RedisModule_DictNext(ctx, iter, NULL)) != NULL) {
                 RedisModule_DictSet(localResult, currentKey, (void *)1);
+                RedisModule_FreeString(ctx, currentKey);
             }
             RedisModule_DictIteratorStop(iter);
         } else {
