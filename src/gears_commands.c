@@ -138,6 +138,7 @@ int TSDB_mget_RG(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         RedisModule_ReplyWithError(ctx, err);
         return REDISMODULE_OK;
     }
+    QueryPredicateList_Free(queries);
 
     RedisModuleBlockedClient *bc = RedisModule_BlockClient(ctx, NULL, NULL, NULL, 0);
     RedisGears_AddOnDoneCallback(ep, mget_done, bc);
