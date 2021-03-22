@@ -94,9 +94,7 @@ static void BWWriteRedisString(Gears_BufferWriter *bw, const RedisModuleString *
 static RedisModuleString *BRReadRedisString(Gears_BufferReader *br) {
     const char *temp = RedisGears_BRReadString(br);
     size_t len = strlen(temp);
-    char *key_c = malloc(len);
-    memcpy(key_c, temp, len);
-    return RedisModule_CreateString(NULL, key_c, len);
+    return RedisModule_CreateString(NULL, temp, len);
 }
 
 static void *QueryPredicates_ArgDeserialize(FlatExecutionPlan *fep,
@@ -267,6 +265,7 @@ Record *ShardQueryindexMapper(ExecutionCtx *rctx, Record *data, void *arg) {
             RedisGears_StringRecordCreate(strndup(currentKey, currentKeyLen), currentKeyLen));
     }
     RedisModule_DictIteratorStop(iter);
+    RedisModule_FreeDict(ctx, result);
 
     return series_list;
 }
