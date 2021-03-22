@@ -13,6 +13,7 @@ CC=gcc
 
 CC_FLAGS=\
 	-I$(SRCDIR)/.. \
+	-DREDIS_MODULE_TARGET \
 	-Wall \
 	-fPIC \
 	-Wno-unused-function \
