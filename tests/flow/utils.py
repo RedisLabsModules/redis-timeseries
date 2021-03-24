@@ -1,7 +1,10 @@
+import inspect
 
 from RLTest import Env as rltestEnv
 
 def Env(*args, **kwargs):
+    if 'testName' not in kwargs:
+        kwargs['testName'] = '%s.%s' % (inspect.getmodule(inspect.currentframe().f_back).__name__, inspect.currentframe().f_back.f_code.co_name)
     env = rltestEnv(*args, **kwargs)
     for shard in range(0, env.shardsCount):
         modules = env.getConnection(shard).execute_command('MODULE', 'LIST')
