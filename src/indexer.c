@@ -334,6 +334,9 @@ void PromoteSmallestPredicateToFront(RedisModuleCtx *ctx,
                 minIndex = i;
                 minDictSize = currentDictSize;
             }
+            if (currentPredicateKeys != NULL) {
+                RedisModule_FreeDict(ctx, currentPredicateKeys);
+            }
         }
 
         // switch between the minimal predicate and the predicate in the first place

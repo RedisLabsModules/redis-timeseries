@@ -179,11 +179,14 @@ Record *ShardSeriesMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     Record *series_list = RedisGears_ListRecordCreate(0);
     while ((currentKey = RedisModule_DictNextC(iter, &currentKeyLen, NULL)) != NULL) {
         RedisModuleKey *key;
+        RedisModuleString *keyName = RedisModule_CreateString(ctx, currentKey, currentKeyLen);
         const int status = SilentGetSeries(ctx,
-                                           RedisModule_CreateString(ctx, currentKey, currentKeyLen),
+                                           keyName,
                                            &key,
                                            &series,
                                            REDISMODULE_READ);
+        RedisModule_FreeString(ctx, keyName);
+
         if (!status) {
             RedisModule_Log(ctx,
                             "warning",
@@ -199,6 +202,7 @@ Record *ShardSeriesMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     }
     RedisModule_DictIteratorStop(iter);
     RedisModule_FreeDict(ctx, result);
+    RedisGears_FreeRecord(data);
 
     return series_list;
 }
@@ -250,6 +254,7 @@ Record *ShardMgetMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     }
     RedisModule_DictIteratorStop(iter);
     RedisModule_FreeDict(ctx, result);
+    RedisGears_FreeRecord(data);
 
     return series_list;
 }
@@ -272,6 +277,7 @@ Record *ShardQueryindexMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     }
     RedisModule_DictIteratorStop(iter);
     RedisModule_FreeDict(ctx, result);
+    RedisGears_FreeRecord(data);
 
     return series_list;
 }
