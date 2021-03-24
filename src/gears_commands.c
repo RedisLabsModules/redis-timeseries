@@ -90,6 +90,9 @@ static void mrange_done(ExecutionPlan *gearsCtx, void *privateData) {
         ResultSet_Free(resultset);
     }
 
+    MRangeArgs_Free(&data->args);
+    free(data);
+
     RedisModule_UnblockClient(bc, NULL);
     RedisGears_DropExecution(gearsCtx);
     RedisModule_FreeThreadSafeContext(rctx);
