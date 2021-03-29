@@ -84,7 +84,7 @@ commands:
           no_output_timeout: 30m
           command: |
             cd ./tests/flow
-            GEARS_LOCATION=/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so GEARS=1 GEN=0 CLUSTER=1 ./tests.sh
+            GEARS_LOCATION=/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so GEARS=1 GEN=0 CLUSTER=1 ./tests.sh ../../bin/redistimeseries.so
 
   package:
     steps:
