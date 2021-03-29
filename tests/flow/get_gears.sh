@@ -4,7 +4,7 @@ mkdir -p /tmp/gears
 
 if [ -f "/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so" ]; then
     echo "Gears already exists"
-    exit
+    exit 0
 fi
 
 cd /tmp/gears
