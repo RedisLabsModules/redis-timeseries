@@ -75,7 +75,6 @@ commands:
           command: |
             cd tests/flow
             ./get_gears.sh
-            GEARS_LOCATION=/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so GEARS=1 GEN=0 CLUSTER=1 ./tests.sh
       - save_cache:
           paths:
             - /tmp/gears
@@ -85,10 +84,7 @@ commands:
           no_output_timeout: 30m
           command: |
             cd ./tests/flow
-            python3 -m RLTest --clear-logs --env oss-cluster --shards-count 4 \
-              --module ../../bin/redistimeseries.so \
-              --module /tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so
-
+            GEARS_LOCATION=/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so GEARS=1 GEN=0 CLUSTER=1 ./tests.sh
 
   package:
     steps:
