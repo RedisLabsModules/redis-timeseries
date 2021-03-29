@@ -32,6 +32,7 @@ help() {
 		AOF=0|1         Tests with --test-aof
 		SLAVES=0|1      Tests with --test-slaves
 		CLUSTER=0|1     Tests with --env oss-cluster
+		GEARS=0|1       Tests with RedisGears
 
 		TEST=test        Run specific test (e.g. test.py:test_name)
 		VALGRIND|VGD=1   Run with Valgrind
@@ -95,6 +96,7 @@ GEN=${GEN:-1}
 SLAVES=${SLAVES:-1}
 AOF=${AOF:-1}
 CLUSTER=${CLUSTER:-1}
+GEARS=${GEARS:-1}
 
 GDB=${GDB:-0}
 
@@ -116,6 +118,7 @@ fi
 
 [[ $VERBOSE == 1 ]] && TEST_ARGS+=" -v"
 [[ $GDB == 1 ]] && TEST_ARGS+=" -i --verbose"
+[[ $GEARS == 1 ]] && TEST_ARGS+="--module ${GEARS_LOCATION}"
 
 #----------------------------------------------------------------------------------------------
 
@@ -124,7 +127,7 @@ cd $ROOT/tests/flow
 check_redis_server
 
 [[ $GEN == 1 ]] && run_tests
-[[ $CLUSTER == 1 ]] && TEST_ARGS+=" --env oss-cluster --shards-count 1" run_tests "--env oss-cluster"
+[[ $CLUSTER == 1 ]] && TEST_ARGS+=" --env oss-cluster --shards-count 2" run_tests "--env oss-cluster"
 [[ $SLAVES == 1 ]] && TEST_ARGS+=" --use-slaves" run_tests "--use-slaves"
 [[ $AOF == 1 ]] && TEST_ARGS+=" --use-aof" run_tests "--use-aof"
 

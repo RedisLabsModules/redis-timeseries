@@ -127,7 +127,7 @@ int TSDB_mget_RG(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     if (err) {
         RedisModule_ReplyWithError(ctx, err);
     }
-    QueryPredicates_Arg *queryArg = malloc(sizeof(QueryPredicate));
+    QueryPredicates_Arg *queryArg = malloc(sizeof(QueryPredicates_Arg));
     queryArg->count = queries->count;
     queryArg->startTimestamp = 0;
     queryArg->endTimestamp = 0;
@@ -163,7 +163,7 @@ int TSDB_mrange_RG(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, bool
     if (err) {
         RedisModule_ReplyWithError(ctx, err);
     }
-    QueryPredicates_Arg *queryArg = malloc(sizeof(QueryPredicate));
+    QueryPredicates_Arg *queryArg = malloc(sizeof(QueryPredicates_Arg));
     queryArg->count = args.queryPredicates->count;
     queryArg->startTimestamp = args.startTimestamp;
     queryArg->endTimestamp = args.endTimestamp;
@@ -195,11 +195,10 @@ int TSDB_queryindex_RG(RedisModuleCtx *ctx, QueryPredicateList *queries) {
     if (err) {
         RedisModule_ReplyWithError(ctx, err);
     }
-    QueryPredicates_Arg *queryArg = malloc(sizeof(QueryPredicate));
+    QueryPredicates_Arg *queryArg = malloc(sizeof(QueryPredicates_Arg));
     queryArg->count = queries->count;
     queryArg->startTimestamp = 0;
     queryArg->endTimestamp = 0;
-    queryArg->predicates = queries->list;
     queries->ref++;
     queryArg->predicates = queries;
     queryArg->withLabels = false;

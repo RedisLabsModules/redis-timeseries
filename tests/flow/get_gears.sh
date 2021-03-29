@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-#apt-get install git python build-essential
-#python3 -m pip install -r ./requirements.txt
-
+set -e
 mkdir -p /tmp/gears
 
 if [ -f "/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so" ]; then
@@ -9,7 +7,7 @@ if [ -f "/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so" ]; then
     exit
 fi
 
-pushd /tmp/gears
+cd /tmp/gears
 
 git clone https://github.com/RedisGears/RedisGears.git
 cd RedisGears
@@ -20,9 +18,3 @@ git submodule update
 make setup
 make fetch
 make all
-
-popd
-
-#python3 -m RLTest --clear-logs --env oss-cluster --shards-count 4 \
-#  --module ../../bin/redistimeseries.so \
-#  --module /tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so
