@@ -7,10 +7,10 @@
 
 #include "consts.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <string.h>
 #include <rmutil/alloc.h>
-#include <assert.h>
 
 RedisModuleDict *labelsIndex;
 
@@ -229,7 +229,9 @@ void _difference(RedisModuleCtx *ctx, RedisModuleDict *left, RedisModuleDict *ri
     RedisModule_DictIteratorStop(iter);
 }
 
-RedisModuleDict *GetPredicateKeysDict(RedisModuleCtx *ctx, QueryPredicate *predicate, bool *isCloned) {
+RedisModuleDict *GetPredicateKeysDict(RedisModuleCtx *ctx,
+                                      QueryPredicate *predicate,
+                                      bool *isCloned) {
     /*
      * Return the dictionary of all the keys that match the predicate.
      */
@@ -242,7 +244,8 @@ RedisModuleDict *GetPredicateKeysDict(RedisModuleCtx *ctx, QueryPredicate *predi
 
     int nokey;
 
-    if (predicate->type == NCONTAINS || predicate->type == CONTAINS) {index_key = RedisModule_CreateStringPrintf(
+    if (predicate->type == NCONTAINS || predicate->type == CONTAINS) {
+        index_key = RedisModule_CreateStringPrintf(
             ctx, K_PREFIX, RedisModule_StringPtrLen(predicate->key, &_s));
         currentLeaf = RedisModule_DictGet(labelsIndex, index_key, &nokey);
         RedisModule_FreeString(ctx, index_key);
@@ -311,7 +314,7 @@ RedisModuleDict *QueryIndexPredicate(RedisModuleCtx *ctx,
         } else if (predicate->type == NEQ) {
             _difference(ctx, prevResults, localResult);
         }
-        result =  prevResults;
+        result = prevResults;
     } else if (predicate->type == EQ || predicate->type == CONTAINS ||
                predicate->type == LIST_MATCH) {
         result = localResult;
@@ -341,7 +344,8 @@ void PromoteSmallestPredicateToFront(RedisModuleCtx *ctx,
         unsigned int minDictSize = UINT_MAX;
         bool isCloned;
         for (int i = 0; i < predicate_count; i++) {
-            RedisModuleDict *currentPredicateKeys = GetPredicateKeysDict(ctx, &index_predicate[i], &isCloned);
+            RedisModuleDict *currentPredicateKeys =
+                GetPredicateKeysDict(ctx, &index_predicate[i], &isCloned);
             int currentDictSize =
                 (currentPredicateKeys != NULL) ? RedisModule_DictSize(currentPredicateKeys) : 0;
             if (currentDictSize < minDictSize) {

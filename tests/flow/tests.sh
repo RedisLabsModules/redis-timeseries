@@ -96,7 +96,7 @@ GEN=${GEN:-1}
 SLAVES=${SLAVES:-1}
 AOF=${AOF:-1}
 CLUSTER=${CLUSTER:-1}
-GEARS=${GEARS:-1}
+GEARS=${GEARS:-0}
 
 GDB=${GDB:-0}
 
@@ -118,7 +118,7 @@ fi
 
 [[ $VERBOSE == 1 ]] && TEST_ARGS+=" -v"
 [[ $GDB == 1 ]] && TEST_ARGS+=" -i --verbose"
-[[ $GEARS == 1 ]] && TEST_ARGS+="--module ${GEARS_LOCATION}"
+[[ $GEARS == 1 ]] && TEST_ARGS+=" --module ${GEARS_LOCATION}"
 
 #----------------------------------------------------------------------------------------------
 

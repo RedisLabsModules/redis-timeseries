@@ -162,7 +162,8 @@ Record *ShardSeriesMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     RedisModuleCtx *ctx = RedisGears_GetRedisModuleCtx(rctx);
     QueryPredicates_Arg *predicates = arg;
 
-    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
+    RedisModuleDict *result =
+        QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
 
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(result, "^", NULL, 0);
     char *currentKey;
@@ -173,11 +174,7 @@ Record *ShardSeriesMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     while ((currentKey = RedisModule_DictNextC(iter, &currentKeyLen, NULL)) != NULL) {
         RedisModuleKey *key;
         RedisModuleString *keyName = RedisModule_CreateString(ctx, currentKey, currentKeyLen);
-        const int status = SilentGetSeries(ctx,
-                                           keyName,
-                                           &key,
-                                           &series,
-                                           REDISMODULE_READ);
+        const int status = SilentGetSeries(ctx, keyName, &key, &series, REDISMODULE_READ);
         RedisModule_FreeString(ctx, keyName);
 
         if (!status) {
@@ -204,7 +201,8 @@ Record *ShardMgetMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     RedisModuleCtx *ctx = RedisGears_GetRedisModuleCtx(rctx);
     QueryPredicates_Arg *predicates = arg;
 
-    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
+    RedisModuleDict *result =
+        QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
 
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(result, "^", NULL, 0);
     char *currentKey;
@@ -215,11 +213,7 @@ Record *ShardMgetMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     while ((currentKey = RedisModule_DictNextC(iter, &currentKeyLen, NULL)) != NULL) {
         RedisModuleKey *key;
         RedisModuleString *keyName = RedisModule_CreateString(ctx, currentKey, currentKeyLen);
-        const int status = SilentGetSeries(ctx,
-                                           keyName,
-                                           &key,
-                                           &series,
-                                           REDISMODULE_READ);
+        const int status = SilentGetSeries(ctx, keyName, &key, &series, REDISMODULE_READ);
         RedisModule_FreeString(ctx, keyName);
 
         if (!status) {
@@ -256,7 +250,8 @@ Record *ShardQueryindexMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     RedisModuleCtx *ctx = RedisGears_GetRedisModuleCtx(rctx);
     QueryPredicates_Arg *predicates = arg;
 
-    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
+    RedisModuleDict *result =
+        QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
 
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(result, "^", NULL, 0);
     char *currentKey;
