@@ -209,8 +209,13 @@ void FreeSeries(void *value) {
     RedisModule_FreeThreadSafeContext(ctx);
     RedisModule_FreeDict(NULL, currentSeries->chunks);
 
-    freeLastDeletedSeries();
-    lastDeletedSeries = currentSeries;
+    if (currentSeries->isTemporary) {
+        RedisModule_FreeString(NULL, currentSeries->keyName);
+        free(currentSeries);
+    } else {
+        freeLastDeletedSeries();
+        lastDeletedSeries = currentSeries;
+    }
 }
 
 void FreeCompactionRule(void *value) {

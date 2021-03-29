@@ -102,6 +102,7 @@ int ApplySerieRangeIntoNewSerie(Series **dest,
         .labels = NULL, .labelsCount = 0, .chunkSizeBytes = Chunk_SIZE_BYTES_SECS, .options = 0
     };
     cCtx.options |= SERIES_OPT_UNCOMPRESSED;
+    cCtx.isTemporary = true;
 
     Series *new = NewSeries(RedisModule_CreateStringFromString(NULL, source->keyName), &cCtx);
     long long arraylen = 0;

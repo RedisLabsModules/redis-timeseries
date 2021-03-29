@@ -42,6 +42,7 @@ typedef struct QueryPredicateList
 {
     QueryPredicate *list;
     size_t count;
+    size_t ref;
 } QueryPredicateList;
 
 int parsePredicate(RedisModuleCtx *ctx,

@@ -10,7 +10,7 @@
 
 typedef struct QueryPredicates_Arg
 {
-    QueryPredicate *predicates;
+    QueryPredicateList *predicates;
     timestamp_t startTimestamp;
     timestamp_t endTimestamp;
     size_t count;

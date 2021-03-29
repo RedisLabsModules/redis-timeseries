@@ -236,6 +236,7 @@ QueryPredicateList *parseLabelListFromArgs(RedisModuleCtx *ctx,
                                            int *response) {
     QueryPredicateList *queries = malloc(sizeof(QueryPredicateList));
     queries->count = query_count;
+    queries->ref = 1;
     queries->list = calloc(queries->count, sizeof(QueryPredicate));
     memset(queries->list, 0, queries->count * sizeof(QueryPredicate));
     int current_index = 0;

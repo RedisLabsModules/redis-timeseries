@@ -184,7 +184,7 @@ int TSDB_queryindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
     if (IsGearsLoaded()) {
         TSDB_queryindex_RG(ctx, queries);
-        free(queries);
+        QueryPredicateList_Free(queries);
     } else {
         _TSDB_queryindex_impl(ctx, queries);
         QueryPredicateList_Free(queries);

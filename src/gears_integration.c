@@ -25,16 +25,7 @@ RecordType *GetSeriesRecordType() {
 static void QueryPredicates_ObjectFree(void *arg) {
     QueryPredicates_Arg *predicate_list = arg;
 
-    for (int i = 0; i < predicate_list->count; i++) {
-        QueryPredicate *predicate = predicate_list->predicates + i;
-        RedisModule_FreeString(NULL, predicate->key);
-        for (int value_index = 0; value_index < predicate->valueListCount; value_index++) {
-            RedisModule_FreeString(NULL, predicate->valuesList[value_index]);
-        }
-        free(predicate->valuesList);
-    }
-    free(predicate_list->predicates);
-
+    QueryPredicateList_Free(predicate_list->predicates);
     free(predicate_list);
 }
 
@@ -46,9 +37,9 @@ static char *QueryPredicates_ToString(void *arg) {
     QueryPredicates_Arg *predicate_list = arg;
     char out[250];
     int index = 0;
-    index += sprintf(out, "QueryPredicates: len: %lu; ", predicate_list->count);
-    for (int i = 0; i < predicate_list->count; i++) {
-        QueryPredicate *predicate = predicate_list->predicates + i;
+    index += sprintf(out, "QueryPredicates: len: %lu; ", predicate_list->predicates->count);
+    for (int i = 0; i < predicate_list->predicates->count; i++) {
+        QueryPredicate *predicate = predicate_list->predicates->list + i;
         size_t len;
         index += sprintf(out + index,
                          "'%s=%s' ",
@@ -65,13 +56,13 @@ static int QueryPredicates_ArgSerialize(FlatExecutionPlan *fep,
                                         Gears_BufferWriter *bw,
                                         char **err) {
     QueryPredicates_Arg *predicate_list = arg;
-    RedisGears_BWWriteLong(bw, predicate_list->count);
+    RedisGears_BWWriteLong(bw, predicate_list->predicates->count);
     RedisGears_BWWriteLong(bw, predicate_list->withLabels);
     RedisGears_BWWriteLong(bw, predicate_list->startTimestamp);
     RedisGears_BWWriteLong(bw, predicate_list->endTimestamp);
-    for (int i = 0; i < predicate_list->count; i++) {
+    for (int i = 0; i < predicate_list->predicates->count; i++) {
         // encode type
-        QueryPredicate *predicate = predicate_list->predicates + i;
+        QueryPredicate *predicate = predicate_list->predicates->list + i;
         RedisGears_BWWriteLong(bw, predicate->type);
 
         // encode key
@@ -103,14 +94,16 @@ static void *QueryPredicates_ArgDeserialize(FlatExecutionPlan *fep,
                                             int version,
                                             char **err) {
     QueryPredicates_Arg *predicates = malloc(sizeof(*predicates));
-    predicates->count = RedisGears_BRReadLong(br);
+    predicates->predicates = malloc(sizeof(QueryPredicateList));
+    predicates->predicates->count = RedisGears_BRReadLong(br);
+    predicates->predicates->ref = 1;
     predicates->withLabels = RedisGears_BRReadLong(br);
     predicates->startTimestamp = RedisGears_BRReadLong(br);
     predicates->endTimestamp = RedisGears_BRReadLong(br);
 
-    predicates->predicates = calloc(predicates->count, sizeof(QueryPredicate));
-    for (int i = 0; i < predicates->count; i++) {
-        QueryPredicate *predicate = predicates->predicates + i;
+    predicates->predicates->list = calloc(predicates->predicates->count, sizeof(QueryPredicate));
+    for (int i = 0; i < predicates->predicates->count; i++) {
+        QueryPredicate *predicate = predicates->predicates->list + i;
         // decode type
         predicate->type = RedisGears_BRReadLong(br);
 
@@ -169,7 +162,7 @@ Record *ShardSeriesMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     RedisModuleCtx *ctx = RedisGears_GetRedisModuleCtx(rctx);
     QueryPredicates_Arg *predicates = arg;
 
-    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates, predicates->count);
+    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
 
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(result, "^", NULL, 0);
     char *currentKey;
@@ -211,7 +204,7 @@ Record *ShardMgetMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     RedisModuleCtx *ctx = RedisGears_GetRedisModuleCtx(rctx);
     QueryPredicates_Arg *predicates = arg;
 
-    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates, predicates->count);
+    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
 
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(result, "^", NULL, 0);
     char *currentKey;
@@ -263,7 +256,7 @@ Record *ShardQueryindexMapper(ExecutionCtx *rctx, Record *data, void *arg) {
     RedisModuleCtx *ctx = RedisGears_GetRedisModuleCtx(rctx);
     QueryPredicates_Arg *predicates = arg;
 
-    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates, predicates->count);
+    RedisModuleDict *result = QueryIndex(ctx, predicates->predicates->list, predicates->predicates->count);
 
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(result, "^", NULL, 0);
     char *currentKey;
