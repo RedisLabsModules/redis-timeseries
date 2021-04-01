@@ -42,12 +42,14 @@ static void mrange_done(ExecutionPlan *gearsCtx, void *privateData) {
         RedisModule_ReplyWithArray(rctx, len);
     }
 
+    Series **tempSeries = calloc(len, sizeof(Series *));
     for (int i = 0; i < len; i++) {
         Record *raw_record = RedisGears_GetRecord(gearsCtx, i);
         if (raw_record->type != GetSeriesRecordType()) {
             continue;
         }
         Series *s = SeriesRecord_IntoSeries((SeriesRecord *)raw_record);
+        tempSeries[i] = s;
 
         if (data->args.groupByLabel) {
             ResultSet_AddSerie(resultset, s, RedisModule_StringPtrLen(s->keyName, NULL));
@@ -61,7 +63,6 @@ static void mrange_done(ExecutionPlan *gearsCtx, void *privateData) {
                                 data->args.aggregationArgs.timeDelta,
                                 data->args.count,
                                 data->args.reverse);
-            FreeSeries(s);
         }
     }
 
@@ -85,15 +86,17 @@ static void mrange_done(ExecutionPlan *gearsCtx, void *privateData) {
                        NULL,
                        0,
                        data->args.count,
-                       false);
+                       data->args.reverse);
 
         ResultSet_Free(resultset);
     }
-
+    RedisModule_UnblockClient(bc, NULL);
+    for (int i = 0; i < len; i++) {
+        FreeSeries(tempSeries[i]);
+    }
+    free(tempSeries);
     MRangeArgs_Free(&data->args);
     free(data);
-
-    RedisModule_UnblockClient(bc, NULL);
     RedisGears_DropExecution(gearsCtx);
     RedisModule_FreeThreadSafeContext(rctx);
 }

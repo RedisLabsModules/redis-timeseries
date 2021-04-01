@@ -83,8 +83,8 @@ commands:
           name: Run flow with gears
           no_output_timeout: 30m
           command: |
-            cd ./tests/flow
-            GEARS_LOCATION=/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so GEARS=1 GEN=0 CLUSTER=1 ./tests.sh ../../bin/redistimeseries.so
+            GEARS_LOCATION=/tmp/gears/RedisGears/bin/linux-x64-release/redisgears.so make test \
+              TEST_REPORT_DIR=$HOME/workspace/tests  GEARS=1 GEN=0 CLUSTER=1 <<parameters.test_params>> SHOW=1
 
   package:
     steps:
