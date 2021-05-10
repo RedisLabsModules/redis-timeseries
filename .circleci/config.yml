@@ -357,7 +357,7 @@ workflows:
       - performance_ci_automation:
           context: common
           requires:
-            - build          
+            - build
           <<: *on-integ-branch
       - build-macos:
           <<: *on-version-tags
@@ -400,5 +400,15 @@ workflows:
     jobs:
       - build-macos
       - valgrind
+
+  nightly_performance:
+    triggers:
+      - schedule:
+          cron: "20 17 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
       - performance_ci_automation:
           context: common

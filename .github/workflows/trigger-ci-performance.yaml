@@ -1,0 +1,31 @@
+# https://github.com/marketplace/actions/run-circle-ci-on-label
+name: performance_ci_automation
+
+on:
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  valgrind_general:
+    if: github.event.label.name == 'run-perf'
+    runs-on: ubuntu-latest
+    name: Trigger CI performance
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check CIRCLE_CI_SECRET
+        env:
+          CIRCLE_CI_SECRET: ${{ secrets.CIRCLE_CI_SECRET }}
+        run: |
+          if [[ -z "$CIRCLE_CI_SECRET" ]] ; then
+            echo "CIRCLE_CI_SECRET secret is not set"
+            exit 1
+          fi
+      - name: circle-ci job runner
+        id: curl-circle-ci
+        uses: Open-Source-Contrib/circle-ci-trigger-action@latest
+        with:
+          circle_ci_token: ${{ secrets.CIRCLE_CI_SECRET}}
+          circle_ci_job: performance_ci_automation
+          circle_ci_project_url: ${{ github.event.pull_request.head.ref }}
