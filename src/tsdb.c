@@ -21,6 +21,18 @@
 static Series *lastDeletedSeries = NULL;
 static RedisModuleString *renameFromKey = NULL;
 
+void updateSeriesLastValue(Series *series, const SampleValue *src) {
+    SampleValue *dest = &series->lastValue;
+
+    if (!SeriesIsBlob(series)) {
+        VALUE_DOUBLE(dest) = VALUE_DOUBLE(src);
+        return;
+    }
+
+    // For the lastValue, we need another copy of incoming data
+    BlobCopy(VALUE_BLOB(dest), VALUE_BLOB(src));
+}
+
 int GetSeries(RedisModuleCtx *ctx,
               RedisModuleString *keyName,
               RedisModuleKey **key,
@@ -78,6 +90,9 @@ int dictOperator(RedisModuleDict *d, void *chunk, timestamp_t ts, DictOp op) {
 
 Series *NewSeries(RedisModuleString *keyName, CreateCtx *cCtx) {
     Series *newSeries = (Series *)malloc(sizeof(Series));
+
+    bool isBlob = ((cCtx->options & SERIES_OPT_BLOB) == SERIES_OPT_BLOB);
+
     newSeries->keyName = keyName;
     newSeries->chunks = RedisModule_CreateDict(NULL);
     newSeries->chunkSizeBytes = cCtx->chunkSizeBytes;
@@ -85,7 +100,14 @@ Series *NewSeries(RedisModuleString *keyName, CreateCtx *cCtx) {
     newSeries->srcKey = NULL;
     newSeries->rules = NULL;
     newSeries->lastTimestamp = 0;
-    newSeries->lastValue = 0;
+    if (!isBlob)
+        VALUE_DOUBLE(&newSeries->lastValue) = 0;
+    else {
+        // Having an empty lastValue would make issues at rdb load time
+        VALUE_BLOB(&newSeries->lastValue) = NewBlob("", 1);
+        // Only 'last' policy is supported
+        cCtx->duplicatePolicy = DP_LAST;
+    }
     newSeries->totalSamples = 0;
     newSeries->labels = cCtx->labels;
     newSeries->labelsCount = cCtx->labelsCount;
@@ -101,7 +123,7 @@ Series *NewSeries(RedisModuleString *keyName, CreateCtx *cCtx) {
     }
 
     if (!cCtx->skipChunkCreation) {
-        Chunk_t *newChunk = newSeries->funcs->NewChunk(newSeries->chunkSizeBytes);
+        Chunk_t *newChunk = newSeries->funcs->NewChunk(isBlob, newSeries->chunkSizeBytes);
         dictOperator(newSeries->chunks, newChunk, 0, DICT_OP_SET);
         newSeries->lastChunk = newChunk;
     } else {
@@ -327,6 +349,7 @@ cleanup:
 // Releases Series and all its compaction rules
 void FreeSeries(void *value) {
     Series *currentSeries = (Series *)value;
+
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(currentSeries->chunks, "^", NULL, 0);
     Chunk_t *currentChunk;
     while (RedisModule_DictNextC(iter, NULL, (void *)&currentChunk) != NULL) {
@@ -345,6 +368,10 @@ void FreeSeries(void *value) {
 
     RedisModule_FreeThreadSafeContext(ctx);
     RedisModule_FreeDict(NULL, currentSeries->chunks);
+
+    if (SeriesIsBlob(currentSeries)) {
+        FreeBlob(VALUE_BLOB(&currentSeries->lastValue));
+    }
 
     if (currentSeries->isTemporary) {
         RedisModule_FreeString(NULL, currentSeries->keyName);
@@ -476,10 +503,12 @@ static void upsertCompaction(Series *series, UpsertCtx *uCtx) {
                 RedisModule_Log(ctx, "verbose", "%s", "Failed to retrieve downsample series");
                 continue;
             }
+            SampleValue sVal = { .d.value = val };
+
             if (destSeries->totalSamples == 0) {
-                SeriesAddSample(destSeries, start, val);
+                SeriesAddSample(destSeries, start, sVal);
             } else {
-                SeriesUpsertSample(destSeries, start, val, DP_LAST);
+                SeriesUpsertSample(destSeries, start, sVal, DP_LAST);
             }
             RedisModule_CloseKey(key);
         }
@@ -490,7 +519,7 @@ static void upsertCompaction(Series *series, UpsertCtx *uCtx) {
 
 int SeriesUpsertSample(Series *series,
                        api_timestamp_t timestamp,
-                       double value,
+                       SampleValue value,
                        DuplicatePolicy dp_override) {
     bool latestChunk = true;
     void *chunkKey = NULL;
@@ -534,10 +563,9 @@ int SeriesUpsertSample(Series *series,
         }
     }
 
-    UpsertCtx uCtx = {
-        .inChunk = chunk,
-        .sample = { .timestamp = timestamp, .value = value },
-    };
+    UpsertCtx uCtx = { .inChunk = chunk,
+                       .sample = { .timestamp = timestamp, .value = value },
+                       .isBlob = SeriesIsBlob(series) };
 
     int size = 0;
 
@@ -555,7 +583,7 @@ int SeriesUpsertSample(Series *series,
     if (rv == CR_OK) {
         series->totalSamples += size;
         if (timestamp == series->lastTimestamp) {
-            series->lastValue = uCtx.sample.value;
+            updateSeriesLastValue(series, &uCtx.sample.value);
         }
         timestamp_t chunkFirstTSAfterOp = funcs->GetFirstTimestamp(uCtx.inChunk);
         if (chunkFirstTSAfterOp != chunkFirstTS) {
@@ -568,10 +596,11 @@ int SeriesUpsertSample(Series *series,
 
         upsertCompaction(series, &uCtx);
     }
+
     return rv;
 }
 
-int SeriesAddSample(Series *series, api_timestamp_t timestamp, double value) {
+int SeriesAddSample(Series *series, api_timestamp_t timestamp, SampleValue value) {
     // backfilling or update
     Sample sample = { .timestamp = timestamp, .value = value };
     ChunkResult ret = series->funcs->AddSample(series->lastChunk, &sample);
@@ -580,14 +609,17 @@ int SeriesAddSample(Series *series, api_timestamp_t timestamp, double value) {
         // When a new chunk is created trim the series
         SeriesTrim(series, true, 0, 0);
 
-        Chunk_t *newChunk = series->funcs->NewChunk(series->chunkSizeBytes);
+        Chunk_t *newChunk = series->funcs->NewChunk(SeriesIsBlob(series), series->chunkSizeBytes);
         dictOperator(series->chunks, newChunk, timestamp, DICT_OP_SET);
         ret = series->funcs->AddSample(newChunk, &sample);
         series->lastChunk = newChunk;
     }
     series->lastTimestamp = timestamp;
-    series->lastValue = value;
+
+    updateSeriesLastValue(series, &value);
+
     series->totalSamples++;
+
     return TSDB_OK;
 }
 
@@ -600,6 +632,9 @@ CompactionRule *SeriesAddRule(Series *series,
                               RedisModuleString *destKeyStr,
                               int aggType,
                               uint64_t timeBucket) {
+    if (SeriesIsBlob(series))
+        aggType = BlobAggType(aggType);
+
     CompactionRule *rule = NewRule(destKeyStr, aggType, timeBucket);
     if (rule == NULL) {
         return NULL;
@@ -726,6 +761,10 @@ int SeriesDeleteSrcRule(Series *series, RedisModuleString *srctKey) {
     return FALSE;
 }
 
+bool SeriesIsBlob(const Series *series) {
+    return (series->options & SERIES_OPT_BLOB) == SERIES_OPT_BLOB;
+}
+
 /*
  * This function calculate aggregation value of a range.
  *
@@ -743,7 +782,7 @@ int SeriesCalcRange(Series *series,
     void *context = aggObject->createContext();
 
     while (SeriesIteratorGetNext(iterator, &sample) == CR_OK) {
-        aggObject->appendValue(context, sample.value);
+        aggObject->appendValue(context, VALUE_DOUBLE(&sample.value));
     }
     SeriesIteratorClose(iterator);
     if (val == NULL) { // just update context for current window

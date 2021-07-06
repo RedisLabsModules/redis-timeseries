@@ -7,6 +7,7 @@
 #ifndef GENERIC__CHUNK_H
 #define GENERIC__CHUNK_H
 
+#include "blob.h"
 #include "consts.h"
 #include "redisgears.h"
 
@@ -17,12 +18,28 @@
 #include <rmutil/strings.h>
 
 struct RedisModuleIO;
+struct RedisModuleString;
+
+// Must fit in 64 bits
+typedef struct
+{
+    union
+    {
+        double value;
+        TSBlob *buf;
+    } d;
+} SampleValue;
 
 typedef struct Sample
 {
     timestamp_t timestamp;
-    double value;
+    SampleValue value;
 } Sample;
+
+#define VALUE_DOUBLE(sampleValue) ((sampleValue)->d.value)
+#define VALUE_BLOB(sampleValue) ((sampleValue)->d.buf)
+
+void updateSampleValue(bool blob, SampleValue *dest, const SampleValue *src);
 
 typedef void Chunk_t;
 typedef void ChunkIter_t;
@@ -44,6 +61,7 @@ typedef struct UpsertCtx
 {
     Sample sample;
     Chunk_t *inChunk; // original chunk
+    bool isBlob;
 } UpsertCtx;
 
 typedef struct ChunkIterFuncs
@@ -55,7 +73,7 @@ typedef struct ChunkIterFuncs
 
 typedef struct ChunkFuncs
 {
-    Chunk_t *(*NewChunk)(size_t sampleCount);
+    Chunk_t *(*NewChunk)(bool isBlob, size_t sampleCount);
     void (*FreeChunk)(Chunk_t *chunk);
     Chunk_t *(*CloneChunk)(Chunk_t *chunk);
     Chunk_t *(*SplitChunk)(Chunk_t *chunk);
@@ -73,8 +91,8 @@ typedef struct ChunkFuncs
     u_int64_t (*GetLastTimestamp)(Chunk_t *chunk);
     u_int64_t (*GetFirstTimestamp)(Chunk_t *chunk);
 
-    void (*SaveToRDB)(Chunk_t *chunk, struct RedisModuleIO *io);
-    void (*LoadFromRDB)(Chunk_t **chunk, struct RedisModuleIO *io);
+    void (*SaveToRDB)(Chunk_t *chunk, struct RedisModuleIO *io, bool blob);
+    void (*LoadFromRDB)(Chunk_t **chunk, struct RedisModuleIO *io, bool blob);
     void (*GearsSerialize)(Chunk_t *chunk, Gears_BufferWriter *bw);
     void (*GearsDeserialize)(Chunk_t **chunk, Gears_BufferReader *br);
 } ChunkFuncs;

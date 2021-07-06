@@ -154,7 +154,7 @@ Record *ListWithSeriesLastDatapoint(const Series *series) {
     if (SeriesGetNumSamples(series) == 0) {
         return RedisGears_ListRecordCreate(0);
     } else {
-        return ListWithSample(series->lastTimestamp, series->lastValue);
+        return ListWithSample(series->lastTimestamp, VALUE_DOUBLE(&series->lastValue));
     }
 }
 

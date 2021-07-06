@@ -124,6 +124,7 @@ CC_FLAGS += $(CC_FLAGS.coverage)
 LD_FLAGS += $(LD_FLAGS.coverage)
 
 _SOURCES=\
+	blob.c \
 	chunk.c \
 	compaction.c \
 	compressed_chunk.c \

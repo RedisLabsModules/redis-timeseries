@@ -51,6 +51,16 @@ pack:
 run:
 	@$(MAKE) -C src run
 
+valgrind:
+	@$(MAKE) -C src $@
+
+run:
+	@$(MAKE) -C src $@
+
+gdb:
+	@$(MAKE) -C src $@
+
+
 benchmark:
 	@$(MAKE) -C src benchmark
 

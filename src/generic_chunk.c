@@ -76,15 +76,15 @@ ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Samp
         case DP_LAST:
             return CR_OK;
         case DP_MIN:
-            if (oldSample.value < newSample->value)
-                newSample->value = oldSample.value;
+            if (VALUE_DOUBLE(&oldSample.value) < VALUE_DOUBLE(&newSample->value))
+                VALUE_DOUBLE(&newSample->value) = VALUE_DOUBLE(&oldSample.value);
             return CR_OK;
         case DP_MAX:
-            if (oldSample.value > newSample->value)
-                newSample->value = oldSample.value;
+            if (VALUE_DOUBLE(&oldSample.value) > VALUE_DOUBLE(&newSample->value))
+                VALUE_DOUBLE(&newSample->value) = VALUE_DOUBLE(&oldSample.value);
             return CR_OK;
         case DP_SUM:
-            newSample->value += oldSample.value;
+            VALUE_DOUBLE(&newSample->value) += VALUE_DOUBLE(&oldSample.value);
             return CR_OK;
         default:
             return CR_ERR;
@@ -163,4 +163,16 @@ DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len) {
         }
     }
     return DP_INVALID;
+}
+
+void updateSampleValue(bool isblob, SampleValue *dest, const SampleValue *src) {
+    if (!isblob) {
+        VALUE_DOUBLE(dest) = VALUE_DOUBLE(src);
+        return;
+    }
+
+    TSBlob *dstBlob = VALUE_BLOB(dest);
+    TSBlob *srcBlob = VALUE_BLOB(src);
+
+    BlobCopy(dstBlob, srcBlob);
 }

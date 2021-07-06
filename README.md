@@ -119,6 +119,28 @@ OK
    2) "42"
 ```
 
+It is also possible to store binary data (with redis-cli, we illustrate this with character strings).
+For doing this, simply add the **BLOB** keyword when creating the key.
+Since creating the key is also feasible with TS.ADD, the **BLOB** keyword can be added as an option to this command, too.
+
+Aggregation works with binary data as well, but obviously, only types of "last" and "first" are supported in this case.
+
+```sh
+$ redis-cli
+127.0.0.1:6379> TS.CREATE blob1 BLOB
+OK
+127.0.0.1:6379> TS.ADD blob1 * value1
+(integer) 1600765694862
+127.0.0.1:6379> TS.ADD blob1 * value2
+(integer) 1600765708510
+127.0.0.1:6379> TS.RANGE blob1 - +
+1) 1) (integer) 1600765694862
+   2) "value1"
+2) 1) (integer) 1600765708510
+   2) "value2"
+
+```
+
 ### Client libraries
 
 Some languages have client libraries that provide support for RedisTimeSeries commands:

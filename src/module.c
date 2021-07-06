@@ -55,14 +55,16 @@ int TSDB_info(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
     int is_debug = RMUtil_ArgExists("DEBUG", argv, argc, 1);
     if (is_debug) {
-        RedisModule_ReplyWithArray(ctx, 13 * 2);
+        RedisModule_ReplyWithArray(ctx, 14 * 2);
     } else {
-        RedisModule_ReplyWithArray(ctx, 12 * 2);
+        RedisModule_ReplyWithArray(ctx, 13 * 2);
     }
 
     long long skippedSamples;
     long long firstTimestamp = getFirstValidTimestamp(series, &skippedSamples);
 
+    RedisModule_ReplyWithSimpleString(ctx, "type");
+    RedisModule_ReplyWithSimpleString(ctx, SeriesIsBlob(series) ? "blob" : "numeric");
     RedisModule_ReplyWithSimpleString(ctx, "totalSamples");
     RedisModule_ReplyWithLongLong(ctx, SeriesGetNumSamples(series) - skippedSamples);
     RedisModule_ReplyWithSimpleString(ctx, "memoryUsage");
@@ -101,6 +103,7 @@ int TSDB_info(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
 
     RedisModule_ReplyWithSimpleString(ctx, "rules");
+
     RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
     CompactionRule *rule = series->rules;
     int ruleCount = 0;
@@ -323,6 +326,8 @@ int TSDB_mrevrange(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 }
 
 int TSDB_generic_range(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, bool rev) {
+    TS_AGG_TYPES_T agg_type = TS_AGG_NONE;
+
     RedisModule_AutoMemory(ctx);
 
     if (argc < 4) {
@@ -342,8 +347,13 @@ int TSDB_generic_range(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, 
         return REDISMODULE_ERR;
     }
 
-    ReplySeriesRange(ctx, series, &rangeArgs, rev);
+    agg_type = rangeArgs.aggregationArgs.type;
+    if (SeriesIsBlob(series) && !IsCompactionBlobFriendly(agg_type)) {
+        RTS_ReplyGeneralError(ctx, "Aggregation type is not allowed with blob series");
+        return REDISMODULE_ERR;
+    }
 
+    ReplySeriesRange(ctx, series, &rangeArgs, rev);
     RedisModule_CloseKey(key);
     return REDISMODULE_OK;
 }
@@ -360,7 +370,7 @@ static void handleCompaction(RedisModuleCtx *ctx,
                              Series *series,
                              CompactionRule *rule,
                              api_timestamp_t timestamp,
-                             double value) {
+                             SampleValue sValue) {
     timestamp_t currentTimestamp = CalcWindowStart(timestamp, rule->timeBucket);
 
     if (rule->startCurrentTimeBucket == -1LL) {
@@ -377,23 +387,31 @@ static void handleCompaction(RedisModuleCtx *ctx,
         }
         Series *destSeries = RedisModule_ModuleTypeGetValue(key);
 
-        double aggVal;
-        if (rule->aggClass->finalize(rule->aggContext, &aggVal) == TSDB_OK) {
-            SeriesAddSample(destSeries, rule->startCurrentTimeBucket, aggVal);
+        SampleValue sAggVal;
+
+        if (aggClassIsBlob(rule->aggClass))
+            VALUE_BLOB(&sAggVal) = NewBlob(EMPTY_BLOB, EMPTY_BLOB_SIZE);
+
+        if (rule->aggClass->finalize(rule->aggContext, &VALUE_DOUBLE(&sAggVal)) == TSDB_OK) {
+            SeriesAddSample(destSeries, rule->startCurrentTimeBucket, sAggVal);
             RedisModule_NotifyKeyspaceEvent(
                 ctx, REDISMODULE_NOTIFY_MODULE, "ts.add:dest", rule->destKey);
         }
+
+        if (aggClassIsBlob(rule->aggClass))
+            FreeBlob(VALUE_BLOB(&sAggVal));
+
         rule->aggClass->resetContext(rule->aggContext);
         rule->startCurrentTimeBucket = currentTimestamp;
         RedisModule_CloseKey(key);
     }
-    rule->aggClass->appendValue(rule->aggContext, value);
+    rule->aggClass->appendValue(rule->aggContext, VALUE_DOUBLE(&sValue));
 }
 
 static int internalAdd(RedisModuleCtx *ctx,
                        Series *series,
                        api_timestamp_t timestamp,
-                       double value,
+                       SampleValue sValue,
                        DuplicatePolicy dp_override) {
     timestamp_t lastTS = series->lastTimestamp;
     uint64_t retention = series->retentionTime;
@@ -404,25 +422,43 @@ static int internalAdd(RedisModuleCtx *ctx,
     }
 
     if (timestamp <= series->lastTimestamp && series->totalSamples != 0) {
-        if (SeriesUpsertSample(series, timestamp, value, dp_override) != REDISMODULE_OK) {
+        if (SeriesUpsertSample(series, timestamp, sValue, dp_override) != REDISMODULE_OK) {
             RTS_ReplyGeneralError(ctx,
                                   "TSDB: Error at upsert, update is not supported in BLOCK mode");
             return REDISMODULE_ERR;
         }
     } else {
-        if (SeriesAddSample(series, timestamp, value) != REDISMODULE_OK) {
+        if (SeriesAddSample(series, timestamp, sValue) != REDISMODULE_OK) {
             RTS_ReplyGeneralError(ctx, "TSDB: Error at add");
             return REDISMODULE_ERR;
         }
         // handle compaction rules
         CompactionRule *rule = series->rules;
         while (rule != NULL) {
-            handleCompaction(ctx, series, rule, timestamp, value);
+            handleCompaction(ctx, series, rule, timestamp, sValue);
             rule = rule->nextRule;
         }
     }
     RedisModule_ReplyWithLongLong(ctx, timestamp);
     return REDISMODULE_OK;
+}
+
+static int parseValue(RedisModuleCtx *ctx,
+                      bool isBlob,
+                      const RedisModuleString *valueStr,
+                      SampleValue *sampleValue) {
+    if (isBlob) {
+        size_t len;
+        const char *data = RedisModule_StringPtrLen(valueStr, &len);
+        VALUE_BLOB(sampleValue) = NewBlob(data, len);
+        return 0;
+    }
+
+    const char *valueCStr = RedisModule_StringPtrLen(valueStr, NULL);
+    if ((fast_double_parser_c_parse_number(valueCStr, &VALUE_DOUBLE(sampleValue)) == NULL)) {
+        return -1;
+    }
+    return 0;
 }
 
 static inline int add(RedisModuleCtx *ctx,
@@ -432,10 +468,7 @@ static inline int add(RedisModuleCtx *ctx,
                       RedisModuleString **argv,
                       int argc) {
     RedisModuleKey *key = RedisModule_OpenKey(ctx, keyName, REDISMODULE_READ | REDISMODULE_WRITE);
-    double value;
-    const char *valueCStr = RedisModule_StringPtrLen(valueStr, NULL);
-    if ((fast_double_parser_c_parse_number(valueCStr, &value) == NULL))
-        return RTS_ReplyGeneralError(ctx, "TSDB: invalid value");
+    SampleValue value;
 
     long long timestampValue;
     if ((RedisModule_StringToLongLong(timestampStr, &timestampValue) != REDISMODULE_OK)) {
@@ -453,16 +486,16 @@ static inline int add(RedisModuleCtx *ctx,
 
     Series *series = NULL;
     DuplicatePolicy dp = DP_NONE;
+    CreateCtx cCtx = { 0 };
 
     if (argv != NULL && RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY) {
         // the key doesn't exist, lets check we have enough information to create one
-        CreateCtx cCtx = { 0 };
+
         if (parseCreateArgs(ctx, argv, argc, &cCtx) != REDISMODULE_OK) {
-            return REDISMODULE_ERR;
+            RedisModule_CloseKey(key);
+            return RTS_ReplyGeneralError(ctx, "TSDB: unable to parse create arguments");
         }
 
-        CreateTsKey(ctx, keyName, &cCtx, &series, &key);
-        SeriesCreateRulesFromGlobalConfig(ctx, keyName, series, cCtx.labels, cCtx.labelsCount);
     } else if (RedisModule_ModuleTypeGetType(key) != SeriesType) {
         return RTS_ReplyGeneralError(ctx, "TSDB: the key is not a TSDB key");
     } else {
@@ -473,8 +506,30 @@ static inline int add(RedisModuleCtx *ctx,
             return REDISMODULE_ERR;
         }
     }
+
+    bool isBlob = false;
+    if ((cCtx.options & SERIES_OPT_BLOB) == SERIES_OPT_BLOB || (series && SeriesIsBlob(series)))
+        isBlob = true;
+
+    /* when the given object is a blob, it is allocated by this call */
+    if (parseValue(ctx, isBlob, valueStr, &value) != 0) {
+        RedisModule_CloseKey(key);
+        return RTS_ReplyGeneralError(ctx, "TSDB: unable to parse value");
+    }
+
+    if (!series) {
+        CreateTsKey(ctx, keyName, &cCtx, &series, &key);
+        SeriesCreateRulesFromGlobalConfig(ctx, keyName, series, cCtx.labels, cCtx.labelsCount);
+    }
+
     int rv = internalAdd(ctx, series, timestamp, value, dp);
+
+    if (isBlob) {
+        FreeBlob(VALUE_BLOB(&value));
+    }
+
     RedisModule_CloseKey(key);
+
     return rv;
 }
 
@@ -720,6 +775,12 @@ int TSDB_createRule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     if (!statusD) {
         return REDISMODULE_ERR;
     }
+
+    if (SeriesIsBlob(destSeries) && (aggType == TS_AGG_BLOB_COUNT || aggType == TS_AGG_COUNT))
+        return RTS_ReplyGeneralError(
+            ctx,
+            "TSDB: the destination key is of binary type and cannot hold an aggregation count");
+
     srcKeyName = RedisModule_CreateStringFromString(ctx, srcKeyName);
     if (!SeriesSetSrcRule(destSeries, srcKeyName)) {
         return RTS_ReplyGeneralError(ctx, "TSDB: the destination key already has a rule");
@@ -768,6 +829,10 @@ int TSDB_incrby(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
             return REDISMODULE_ERR;
         }
 
+        if ((cCtx.options & SERIES_OPT_BLOB) == SERIES_OPT_BLOB)
+            return RTS_ReplyGeneralError(ctx,
+                                         "TSDB: Creating blob is forbidden with this function");
+
         CreateTsKey(ctx, keyName, &cCtx, &series, &key);
         SeriesCreateRulesFromGlobalConfig(ctx, keyName, series, cCtx.labels, cCtx.labelsCount);
     } else if (RedisModule_ModuleTypeGetType(key) != SeriesType) {
@@ -775,6 +840,8 @@ int TSDB_incrby(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
 
     series = RedisModule_ModuleTypeGetValue(key);
+    if (SeriesIsBlob(series))
+        return RTS_ReplyGeneralError(ctx, "TSDB: Blobs are forbidden with this function");
 
     double incrby = 0;
     if (RMUtil_ParseArgs(argv, argc, 2, "d", &incrby) != REDISMODULE_OK) {
@@ -795,7 +862,7 @@ int TSDB_incrby(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
             ctx, "TSDB: for incrby/decrby, timestamp should be newer than the lastest one");
     }
 
-    double result = series->lastValue;
+    double result = VALUE_DOUBLE(&series->lastValue);
     RMUtil_StringToLower(argv[0]);
     bool isIncr = RMUtil_StringEqualsC(argv[0], "ts.incrby");
     if (isIncr) {
@@ -803,8 +870,9 @@ int TSDB_incrby(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     } else {
         result -= incrby;
     }
+    SampleValue sValue = { .d.value = result };
 
-    int rv = internalAdd(ctx, series, currentUpdatedTime, result, DP_LAST);
+    int rv = internalAdd(ctx, series, currentUpdatedTime, sValue, DP_LAST);
     RedisModule_ReplicateVerbatim(ctx);
     RedisModule_CloseKey(key);
 

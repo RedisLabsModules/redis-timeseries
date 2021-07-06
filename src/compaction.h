@@ -28,4 +28,10 @@ int RMStringLenAggTypeToEnum(RedisModuleString *aggTypeStr);
 int StringLenAggTypeToEnum(const char *agg_type, size_t len);
 const char *AggTypeEnumToString(TS_AGG_TYPES_T aggType);
 
+bool IsCompactionBlobFriendly(TS_AGG_TYPES_T aggType);
+
+AggregationClass *BlobAggClass(AggregationClass *class);
+bool aggClassIsBlob(const AggregationClass *class);
+TS_AGG_TYPES_T BlobAggType(TS_AGG_TYPES_T aggType);
+
 #endif

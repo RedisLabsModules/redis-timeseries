@@ -34,7 +34,7 @@ typedef struct Series
     short options;
     CompactionRule *rules;
     timestamp_t lastTimestamp;
-    double lastValue;
+    SampleValue lastValue;
     Label *labels;
     RedisModuleString *keyName;
     size_t labelsCount;
@@ -72,10 +72,10 @@ AbstractIterator *SeriesQuery(Series *series, RangeArgs *args, bool reserve);
 void FreeCompactionRule(void *value);
 size_t SeriesMemUsage(const void *value);
 
-int SeriesAddSample(Series *series, api_timestamp_t timestamp, double value);
+int SeriesAddSample(Series *series, api_timestamp_t timestamp, SampleValue value);
 int SeriesUpsertSample(Series *series,
                        api_timestamp_t timestamp,
-                       double value,
+                       SampleValue value,
                        DuplicatePolicy dp_override);
 
 int SeriesDeleteRule(Series *series, RedisModuleString *destKey);
@@ -108,6 +108,8 @@ timestamp_t CalcWindowStart(timestamp_t timestamp, size_t window);
 // return first timestamp in retention window, and set `skipped` to number of samples outside of
 // retention
 timestamp_t getFirstValidTimestamp(Series *series, long long *skipped);
+
+bool SeriesIsBlob(const Series *series);
 
 CompactionRule *NewRule(RedisModuleString *destKey, int aggType, uint64_t timeBucket);
 

@@ -34,6 +34,11 @@ int ReplySeriesRange(RedisModuleCtx *ctx, Series *series, RangeArgs *args, bool 
     Sample sample;
     long long arraylen = 0;
 
+    AggregationClass *aggObject = args->aggregationArgs.aggregationClass;
+
+    if (aggObject && SeriesIsBlob(series))
+        aggObject = BlobAggClass(aggObject);
+
     // In case a retention is set shouldn't return chunks older than the retention
     // TODO: move to parseRangeArguments(?) or to iterator
     if (series->retentionTime) {
@@ -49,9 +54,11 @@ int ReplySeriesRange(RedisModuleCtx *ctx, Series *series, RangeArgs *args, bool 
 
     AbstractIterator *iter = SeriesQuery(series, args, reverse);
 
+    bool replyIsBlob = (aggObject == NULL && SeriesIsBlob(series)) || aggClassIsBlob(aggObject);
+
     RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
     while (iter->GetNext(iter, &sample) == CR_OK && (args->count == -1 || arraylen < args->count)) {
-        ReplyWithSample(ctx, sample.timestamp, sample.value);
+        ReplyWithSample(ctx, replyIsBlob, sample.timestamp, sample.value);
         arraylen++;
     }
     iter->Close(iter);
@@ -72,19 +79,25 @@ void ReplyWithSeriesLabels(RedisModuleCtx *ctx, const Series *series) {
 // double string presentation requires 15 digit integers +
 // '.' + "e+" or "e-" + 3 digits of exponent
 #define MAX_VAL_LEN 24
-void ReplyWithSample(RedisModuleCtx *ctx, u_int64_t timestamp, double value) {
+void ReplyWithSample(RedisModuleCtx *ctx, bool isBlob, u_int64_t timestamp, SampleValue value) {
     RedisModule_ReplyWithArray(ctx, 2);
     RedisModule_ReplyWithLongLong(ctx, timestamp);
-    char buf[MAX_VAL_LEN + 1];
-    int str_len = fpconv_dtoa(value, buf);
-    buf[str_len] = '\0';
-    RedisModule_ReplyWithSimpleString(ctx, buf);
+
+    if (!isBlob) {
+        char buf[MAX_VAL_LEN];
+        int str_len = fpconv_dtoa(VALUE_DOUBLE(&value), buf);
+        buf[str_len] = '\0';
+        RedisModule_ReplyWithSimpleString(ctx, buf);
+    } else {
+        TSBlob *blob = VALUE_BLOB(&value);
+        RedisModule_ReplyWithStringBuffer(ctx, blob->data, blob->len);
+    }
 }
 
 void ReplyWithSeriesLastDatapoint(RedisModuleCtx *ctx, const Series *series) {
     if (SeriesGetNumSamples(series) == 0) {
         RedisModule_ReplyWithArray(ctx, 0);
     } else {
-        ReplyWithSample(ctx, series->lastTimestamp, series->lastValue);
+        ReplyWithSample(ctx, SeriesIsBlob(series), series->lastTimestamp, series->lastValue);
     }
 }

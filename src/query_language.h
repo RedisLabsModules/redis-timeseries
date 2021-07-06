@@ -20,6 +20,7 @@
 typedef struct AggregationArgs
 {
     api_timestamp_t timeDelta;
+    int type;
     AggregationClass *aggregationClass;
 } AggregationArgs;
 

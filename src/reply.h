@@ -22,7 +22,7 @@ int ReplySeriesRange(RedisModuleCtx *ctx, Series *series, RangeArgs *args, bool 
 
 void ReplyWithSeriesLabels(RedisModuleCtx *ctx, const Series *series);
 
-void ReplyWithSample(RedisModuleCtx *ctx, u_int64_t timestamp, double value);
+void ReplyWithSample(RedisModuleCtx *ctx, bool isBlob, u_int64_t timestamp, SampleValue value);
 
 void ReplyWithSeriesLastDatapoint(RedisModuleCtx *ctx, const Series *series);
 

@@ -21,7 +21,7 @@
 /*********************
  *  Chunk functions  *
  *********************/
-Chunk_t *Compressed_NewChunk(size_t size) {
+Chunk_t *Compressed_NewChunk(bool unused, size_t size) {
     CompressedChunk *chunk = (CompressedChunk *)calloc(1, sizeof(CompressedChunk));
     chunk->size = size;
     chunk->data = (u_int64_t *)calloc(chunk->size, sizeof(char));
@@ -92,8 +92,8 @@ Chunk_t *Compressed_SplitChunk(Chunk_t *chunk) {
     size_t i = 0;
     Sample sample;
     ChunkIter_t *iter = Compressed_NewChunkIterator(curChunk, CHUNK_ITER_OP_NONE, NULL);
-    CompressedChunk *newChunk1 = Compressed_NewChunk(curChunk->size);
-    CompressedChunk *newChunk2 = Compressed_NewChunk(curChunk->size);
+    CompressedChunk *newChunk1 = Compressed_NewChunk(false, curChunk->size);
+    CompressedChunk *newChunk2 = Compressed_NewChunk(false, curChunk->size);
     for (; i < curNumSamples; ++i) {
         Compressed_ChunkIteratorGetNext(iter, &sample);
         ensureAddSample(newChunk1, &sample);
@@ -121,7 +121,7 @@ ChunkResult Compressed_UpsertSample(UpsertCtx *uCtx, int *size, DuplicatePolicy 
 
     size_t newSize = oldChunk->size;
 
-    CompressedChunk *newChunk = Compressed_NewChunk(newSize);
+    CompressedChunk *newChunk = Compressed_NewChunk(false, newSize);
     Compressed_Iterator *iter = Compressed_NewChunkIterator(oldChunk, CHUNK_ITER_OP_NONE, NULL);
     timestamp_t ts = uCtx->sample.timestamp;
     int numSamples = oldChunk->count;
@@ -165,7 +165,8 @@ ChunkResult Compressed_UpsertSample(UpsertCtx *uCtx, int *size, DuplicatePolicy 
 }
 
 ChunkResult Compressed_AddSample(Chunk_t *chunk, Sample *sample) {
-    return Compressed_Append((CompressedChunk *)chunk, sample->timestamp, sample->value);
+    return Compressed_Append(
+        (CompressedChunk *)chunk, sample->timestamp, VALUE_DOUBLE(&sample->value));
 }
 
 u_int64_t Compressed_ChunkNumOfSample(Chunk_t *chunk) {
@@ -190,7 +191,7 @@ size_t Compressed_GetChunkSize(Chunk_t *chunk, bool includeStruct) {
 size_t Compressed_DelRange(Chunk_t *chunk, timestamp_t startTs, timestamp_t endTs) {
     CompressedChunk *oldChunk = (CompressedChunk *)chunk;
     size_t newSize = oldChunk->size; // mem size
-    CompressedChunk *newChunk = Compressed_NewChunk(newSize);
+    CompressedChunk *newChunk = Compressed_NewChunk(false, newSize);
     Compressed_Iterator *iter = Compressed_NewChunkIterator(oldChunk, CHUNK_ITER_OP_NONE, NULL);
     size_t i = 0;
     size_t deleted_count = 0;
@@ -214,7 +215,7 @@ size_t Compressed_DelRange(Chunk_t *chunk, timestamp_t startTs, timestamp_t endT
 static Chunk *decompressChunk(CompressedChunk *compressedChunk) {
     Sample sample;
     uint64_t numSamples = compressedChunk->count;
-    Chunk *uncompressedChunk = Uncompressed_NewChunk(numSamples * SAMPLE_SIZE);
+    Chunk *uncompressedChunk = Uncompressed_NewChunk(false, numSamples * SAMPLE_SIZE);
 
     ChunkIter_t *iter = Compressed_NewChunkIterator(compressedChunk, CHUNK_ITER_OP_NONE, NULL);
     for (uint64_t i = 0; i < numSamples; ++i) {
@@ -270,7 +271,8 @@ ChunkIter_t *Compressed_NewChunkIterator(Chunk_t *chunk,
 }
 
 ChunkResult Compressed_ChunkIteratorGetNext(ChunkIter_t *iter, Sample *sample) {
-    return Compressed_ReadNext((Compressed_Iterator *)iter, &sample->timestamp, &sample->value);
+    return Compressed_ReadNext(
+        (Compressed_Iterator *)iter, &sample->timestamp, &VALUE_DOUBLE(&sample->value));
 }
 
 void Compressed_FreeChunkIterator(ChunkIter_t *iter) {
@@ -285,7 +287,9 @@ typedef char *(*ReadStringBufferFunc)(void *, size_t *);
 static void Compressed_Serialize(Chunk_t *chunk,
                                  void *ctx,
                                  SaveUnsignedFunc saveUnsigned,
-                                 SaveStringBufferFunc saveStringBuffer) {
+                                 SaveStringBufferFunc saveStringBuffer,
+                                 bool isBlob) {
+    (void)isBlob;
     CompressedChunk *compchunk = chunk;
 
     saveUnsigned(ctx, compchunk->size);
@@ -304,7 +308,9 @@ static void Compressed_Serialize(Chunk_t *chunk,
 static void Compressed_Deserialize(Chunk_t **chunk,
                                    void *ctx,
                                    ReadUnsignedFunc readUnsigned,
-                                   ReadStringBufferFunc readStringBuffer) {
+                                   ReadStringBufferFunc readStringBuffer,
+                                   bool isBlob) {
+    (void)isBlob;
     CompressedChunk *compchunk = (CompressedChunk *)malloc(sizeof(*compchunk));
 
     compchunk->size = readUnsigned(ctx);
@@ -323,25 +329,28 @@ static void Compressed_Deserialize(Chunk_t **chunk,
     *chunk = (Chunk_t *)compchunk;
 }
 
-void Compressed_SaveToRDB(Chunk_t *chunk, struct RedisModuleIO *io) {
+void Compressed_SaveToRDB(Chunk_t *chunk, struct RedisModuleIO *io, bool isBlob) {
     Compressed_Serialize(chunk,
                          io,
                          (SaveUnsignedFunc)RedisModule_SaveUnsigned,
-                         (SaveStringBufferFunc)RedisModule_SaveStringBuffer);
+                         (SaveStringBufferFunc)RedisModule_SaveStringBuffer,
+                         isBlob);
 }
 
-void Compressed_LoadFromRDB(Chunk_t **chunk, struct RedisModuleIO *io) {
+void Compressed_LoadFromRDB(Chunk_t **chunk, struct RedisModuleIO *io, bool isBlob) {
     Compressed_Deserialize(chunk,
                            io,
                            (ReadUnsignedFunc)RedisModule_LoadUnsigned,
-                           (ReadStringBufferFunc)RedisModule_LoadStringBuffer);
+                           (ReadStringBufferFunc)RedisModule_LoadStringBuffer,
+                           isBlob);
 }
 
 void Compressed_GearsSerialize(Chunk_t *chunk, Gears_BufferWriter *bw) {
     Compressed_Serialize(chunk,
                          bw,
                          (SaveUnsignedFunc)RedisGears_BWWriteLong,
-                         (SaveStringBufferFunc)RedisGears_BWWriteBuffer);
+                         (SaveStringBufferFunc)RedisGears_BWWriteBuffer,
+                         false);
 }
 
 static char *ownedBufferFromGears(Gears_BufferReader *br, size_t *len) {
@@ -359,5 +368,6 @@ void Compressed_GearsDeserialize(Chunk_t **chunk, Gears_BufferReader *br) {
     Compressed_Deserialize(chunk,
                            br,
                            (ReadUnsignedFunc)RedisGears_BRReadLong,
-                           (ReadStringBufferFunc)ownedBufferFromGears);
+                           (ReadStringBufferFunc)ownedBufferFromGears,
+                           false);
 }

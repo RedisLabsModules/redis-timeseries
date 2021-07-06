@@ -17,6 +17,7 @@ typedef struct Chunk
     Sample *samples;
     unsigned int num_samples;
     size_t size;
+    bool isBlob;
 } Chunk;
 
 typedef struct ChunkIterator
@@ -28,7 +29,7 @@ typedef struct ChunkIterator
     int options;
 } ChunkIterator;
 
-Chunk_t *Uncompressed_NewChunk(size_t sampleCount);
+Chunk_t *Uncompressed_NewChunk(bool isBlob, size_t sampleCount);
 void Uncompressed_FreeChunk(Chunk_t *chunk);
 
 /**
@@ -69,8 +70,8 @@ ChunkResult Uncompressed_ChunkIteratorGetPrev(ChunkIter_t *iterator, Sample *sam
 void Uncompressed_FreeChunkIterator(ChunkIter_t *iter);
 
 // RDB
-void Uncompressed_SaveToRDB(Chunk_t *chunk, struct RedisModuleIO *io);
-void Uncompressed_LoadFromRDB(Chunk_t **chunk, struct RedisModuleIO *io);
+void Uncompressed_SaveToRDB(Chunk_t *chunk, struct RedisModuleIO *io, bool blob);
+void Uncompressed_LoadFromRDB(Chunk_t **chunk, struct RedisModuleIO *io, bool blob);
 
 // Gears
 void Uncompressed_GearsSerialize(Chunk_t *chunk, Gears_BufferWriter *bw);

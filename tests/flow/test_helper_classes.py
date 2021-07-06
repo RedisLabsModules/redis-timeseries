@@ -169,6 +169,22 @@ class TSInfo(object):
     chunk_size_bytes = None
     chunk_type = None
     chunks = None
+    type = None
+
+    def __str__(self):
+        return "rules:" + str(self.rules) + \
+               ",labels:"+str(self.labels) +\
+               ",sourceKey:"+str(self.sourceKey)+\
+               ",chunk_count:"+str(self.chunk_count)+\
+               ",memory_usage:"+str(self.memory_usage)+\
+               ",total_samples:"+str(self.total_samples)+\
+               ",retention_msecs:"+str(self.retention_msecs)+\
+               ",last_time_stamp:"+str(self.last_time_stamp)+\
+               ",first_time_stamp:"+str(self.first_time_stamp)+\
+               ",chunk_size_bytes:"+str(self.chunk_size_bytes)+\
+               ",chunk_type:"+str(self.chunk_type)+\
+               ",Chunks:"+str(self.chunks)+\
+               ",type:"+str(self.type)
 
     def __init__(self, args):
         response = dict(zip(args[::2], args[1::2]))
@@ -184,6 +200,7 @@ class TSInfo(object):
         if b'chunkSize' in response: self.chunk_size_bytes = response[b'chunkSize']
         if b'chunkType' in response: self.chunk_type = response[b'chunkType']
         if b'Chunks' in response: self.chunks = response[b'Chunks']
+        if b'type' in response: self.type = response[b'type']
 
     def __eq__(self, other):
         if not isinstance(other, TSInfo):
@@ -197,4 +214,5 @@ class TSInfo(object):
                self.last_time_stamp == other.last_time_stamp and \
                self.first_time_stamp == other.first_time_stamp and \
                self.chunk_size_bytes == other.chunk_size_bytes and \
-               self.chunks == other.chunks
+               self.chunks == other.chunks and \
+               self.type == other.type
