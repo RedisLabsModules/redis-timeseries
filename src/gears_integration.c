@@ -321,8 +321,13 @@ Record *SeriesRecord_New(Series *series, timestamp_t startTimestamp, timestamp_t
     if (series->options & SERIES_OPT_UNCOMPRESSED) {
         out->chunkType = CHUNK_REGULAR;
     } else {
-        out->chunkType = CHUNK_COMPRESSED;
+        if (series->options & SERIES_OPT_COMPRESSED_TURBOGORILLA) {
+            out->chunkType = CHUNK_COMPRESSED_TURBOGORILLA;
+        } else {
+            out->chunkType = CHUNK_COMPRESSED;
+        }
     }
+
     out->funcs = series->funcs;
     out->labelsCount = series->labelsCount;
     out->labels = calloc(series->labelsCount, sizeof(Label));
@@ -433,4 +438,15 @@ Series *SeriesRecord_IntoSeries(SeriesRecord *record) {
                      DICT_OP_SET);
     }
     return s;
+}
+
+char *ownedBufferFromGears(Gears_BufferReader *br, size_t *len) {
+    size_t size = 0;
+    const char *temp = RedisGears_BRReadBuffer(br, &size);
+    char *ret = malloc(size);
+    memcpy(ret, temp, size);
+    if (len != NULL) {
+        *len = size;
+    }
+    return ret;
 }

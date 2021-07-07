@@ -95,7 +95,7 @@ size_t SeriesGetNumSamples(const Series *series);
 
 char *SeriesGetCStringLabelValue(const Series *series, const char *labelKey);
 int SeriesDelRange(Series *series, timestamp_t start_ts, timestamp_t end_ts);
-
+const char *SeriesChunkTypeToString(const Series *series);
 int SeriesCalcRange(Series *series,
                     timestamp_t start_ts,
                     timestamp_t end_ts,

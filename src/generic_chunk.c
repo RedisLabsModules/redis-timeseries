@@ -2,6 +2,7 @@
 
 #include "chunk.h"
 #include "compressed_chunk.h"
+#include "turbogorilla_chunk.h"
 
 #include <ctype.h>
 #include "rmutil/alloc.h"
@@ -9,6 +10,7 @@
 static ChunkFuncs regChunk = {
     .NewChunk = Uncompressed_NewChunk,
     .FreeChunk = Uncompressed_FreeChunk,
+    .CloneChunk = Uncompressed_CloneChunk,
     .SplitChunk = Uncompressed_SplitChunk,
 
     .AddSample = Uncompressed_AddSample,
@@ -66,9 +68,41 @@ static ChunkIterFuncs compressedChunkIteratorClass = {
     .Reset = Compressed_ResetChunkIterator,
 };
 
+static ChunkFuncs TurboGorilla_ChunkFuncs = {
+    .NewChunk = TurboGorilla_NewChunk,
+    .FreeChunk = TurboGorilla_FreeChunk,
+    .CloneChunk = TurboGorilla_CloneChunk,
+    .SplitChunk = TurboGorilla_SplitChunk,
+
+    .AddSample = TurboGorilla_AddSample,
+    .UpsertSample = TurboGorilla_UpsertSample,
+    .DelRange = TurboGorilla_DelRange,
+
+    .NewChunkIterator = TurboGorilla_NewChunkIterator,
+
+    .GetChunkSize = TurboGorilla_GetChunkSize,
+    .GetNumOfSample = TurboGorilla_NumOfSample,
+    .GetLastTimestamp = TurboGorilla_GetLastTimestamp,
+    .GetFirstTimestamp = TurboGorilla_GetFirstTimestamp,
+
+    .SaveToRDB = TurboGorilla_SaveToRDB,
+    .LoadFromRDB = TurboGorilla_LoadFromRDB,
+    .GearsSerialize = TurboGorilla_GearsSerialize,
+    .GearsDeserialize = TurboGorilla_GearsDeserialize,
+};
+
+static ChunkIterFuncs TurboGorilla_ChunkIterFuncs = {
+    .Free = TurboGorilla_FreeChunkIterator,
+    .GetNext = TurboGorilla_ChunkIteratorGetNext,
+    .GetPrev = TurboGorilla_ChunkIteratorGetPrev,
+    .Reset = TurboGorilla_ResetChunkIterator,
+};
+
 // This function will decide according to the policy how to handle duplicate sample, the `newSample`
 // will contain the data that will be kept in the database.
-ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Sample *newSample) {
+ChunkResult handleDuplicateSample(DuplicatePolicy policy,
+                                  const double oldSample,
+                                  double *newSample) {
     switch (policy) {
         case DP_BLOCK:
             return CR_ERR;
@@ -78,15 +112,15 @@ ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Samp
         case DP_LAST:
             return CR_OK;
         case DP_MIN:
-            if (oldSample.value < newSample->value)
-                newSample->value = oldSample.value;
+            if (oldSample < *newSample)
+                *newSample = oldSample;
             return CR_OK;
         case DP_MAX:
-            if (oldSample.value > newSample->value)
-                newSample->value = oldSample.value;
+            if (oldSample > *newSample)
+                *newSample = oldSample;
             return CR_OK;
         case DP_SUM:
-            newSample->value += oldSample.value;
+            *newSample += oldSample;
             return CR_OK;
         default:
             return CR_ERR;
@@ -99,6 +133,8 @@ ChunkFuncs *GetChunkClass(CHUNK_TYPES_T chunkType) {
             return &regChunk;
         case CHUNK_COMPRESSED:
             return &comprChunk;
+        case CHUNK_COMPRESSED_TURBOGORILLA:
+            return &TurboGorilla_ChunkFuncs;
     }
     return NULL;
 }
@@ -109,6 +145,8 @@ ChunkIterFuncs *GetChunkIteratorClass(CHUNK_TYPES_T chunkType) {
             return &uncompressedChunkIteratorClass;
         case CHUNK_COMPRESSED:
             return &compressedChunkIteratorClass;
+        case CHUNK_COMPRESSED_TURBOGORILLA:
+            return &TurboGorilla_ChunkIterFuncs;
     }
     return NULL;
 }

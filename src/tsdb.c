@@ -5,6 +5,7 @@
  */
 #include "tsdb.h"
 
+#include "assert.h"
 #include "config.h"
 #include "consts.h"
 #include "endianconv.h"
@@ -97,7 +98,13 @@ Series *NewSeries(RedisModuleString *keyName, CreateCtx *cCtx) {
         newSeries->options |= SERIES_OPT_UNCOMPRESSED;
         newSeries->funcs = GetChunkClass(CHUNK_REGULAR);
     } else {
-        newSeries->funcs = GetChunkClass(CHUNK_COMPRESSED);
+        if (newSeries->options & SERIES_OPT_COMPRESSED_TURBOGORILLA) {
+            newSeries->options |= SERIES_OPT_COMPRESSED_TURBOGORILLA;
+            newSeries->funcs = GetChunkClass(CHUNK_COMPRESSED_TURBOGORILLA);
+        } else {
+            newSeries->options |= SERIES_OPT_COMPRESSED_GORILLA;
+            newSeries->funcs = GetChunkClass(CHUNK_COMPRESSED);
+        }
     }
 
     if (!cCtx->skipChunkCreation) {
@@ -579,10 +586,16 @@ int SeriesAddSample(Series *series, api_timestamp_t timestamp, double value) {
     if (ret == CR_END) {
         // When a new chunk is created trim the series
         SeriesTrim(series, true, 0, 0);
-
         Chunk_t *newChunk = series->funcs->NewChunk(series->chunkSizeBytes);
-        dictOperator(series->chunks, newChunk, timestamp, DICT_OP_SET);
         ret = series->funcs->AddSample(newChunk, &sample);
+#ifdef DEBUG
+        assert(ret == CR_OK);
+        assert(newChunk != NULL);
+#endif
+        int res = dictOperator(series->chunks, newChunk, timestamp, DICT_OP_SET);
+#ifdef DEBUG
+        assert(res == REDISMODULE_OK);
+#endif
         series->lastChunk = newChunk;
     }
     series->lastTimestamp = timestamp;
@@ -657,12 +670,17 @@ int SeriesCreateRulesFromGlobalConfig(RedisModuleCtx *ctx,
         compactedLabels[labelsCount + 1].value =
             RedisModule_CreateStringPrintf(NULL, "%ld", rule->timeBucket);
 
+        int rules_options = TSGlobalConfig.options;
+        rules_options &= ~SERIES_OPT_DEFAULT_COMPRESSION;
+        rules_options &= SERIES_OPT_UNCOMPRESSED;
+
+        TSGlobalConfig.options &= SERIES_OPT_DEFAULT_COMPRESSION;
         CreateCtx cCtx = {
             .retentionTime = rule->retentionSizeMillisec,
             .chunkSizeBytes = TSGlobalConfig.chunkSizeBytes,
             .labelsCount = compactedRuleLabelCount,
             .labels = compactedLabels,
-            .options = TSGlobalConfig.options & SERIES_OPT_UNCOMPRESSED,
+            .options = rules_options,
         };
         CreateTsKey(ctx, destKey, &cCtx, &compactedSeries, &compactedKey);
         RedisModule_CloseKey(compactedKey);

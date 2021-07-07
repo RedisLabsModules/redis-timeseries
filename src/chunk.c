@@ -9,6 +9,23 @@
 
 #include "rmutil/alloc.h"
 
+struct Chunk
+{
+    timestamp_t base_timestamp;
+    Sample *samples;
+    unsigned int num_samples;
+    size_t size;
+};
+
+struct ChunkIterator
+{
+    Chunk *chunk;
+    int currentIndex;
+    timestamp_t lastTimestamp;
+    int lastValue;
+    int options;
+};
+
 Chunk_t *Uncompressed_NewChunk(size_t size) {
     Chunk *newChunk = (Chunk *)malloc(sizeof(Chunk));
     newChunk->num_samples = 0;
@@ -24,6 +41,14 @@ Chunk_t *Uncompressed_NewChunk(size_t size) {
 void Uncompressed_FreeChunk(Chunk_t *chunk) {
     free(((Chunk *)chunk)->samples);
     free(chunk);
+}
+
+Chunk_t *Uncompressed_CloneChunk(Chunk_t *chunk) {
+    Chunk *oldChunk = (Chunk *)chunk;
+    Chunk *newChunk = Uncompressed_NewChunk(oldChunk->size);
+    newChunk->num_samples = oldChunk->num_samples;
+    memcpy(newChunk->samples, oldChunk->samples, oldChunk->num_samples * sizeof(Sample));
+    return newChunk;
 }
 
 /**
@@ -75,6 +100,27 @@ timestamp_t Uncompressed_GetFirstTimestamp(Chunk_t *chunk) {
         return -1;
     }
     return ChunkGetSample(chunk, 0)->timestamp;
+}
+
+int Uncompressed_GetSampleValueAtPos(Chunk_t *chunk, size_t pos, double *value) {
+    int result = CR_ERR;
+    Chunk *uChunk = (Chunk *)chunk;
+    if (uChunk->num_samples > pos) {
+        *value = uChunk->samples[pos].value;
+        result = CR_OK;
+    }
+
+    return result;
+}
+
+int Uncompressed_GetSampleTimestampAtPos(Chunk_t *chunk, size_t pos, u_int64_t *timestamp) {
+    int result = CR_ERR;
+    Chunk *uChunk = (Chunk *)chunk;
+    if (uChunk->num_samples > pos) {
+        *timestamp = uChunk->samples[pos].timestamp;
+        result = CR_OK;
+    }
+    return result;
 }
 
 ChunkResult Uncompressed_AddSample(Chunk_t *chunk, Sample *sample) {
@@ -136,7 +182,7 @@ ChunkResult Uncompressed_UpsertSample(UpsertCtx *uCtx, int *size, DuplicatePolic
     }
     // update value in case timestamp exists
     if (sample != NULL && ts == sample->timestamp) {
-        ChunkResult cr = handleDuplicateSample(duplicatePolicy, *sample, &uCtx->sample);
+        ChunkResult cr = handleDuplicateSample(duplicatePolicy, sample->value, &uCtx->sample.value);
         if (cr != CR_OK) {
             return CR_ERR;
         }
@@ -207,7 +253,7 @@ ChunkResult Uncompressed_ChunkIteratorGetNext(ChunkIter_t *iterator, Sample *sam
 
 ChunkResult Uncompressed_ChunkIteratorGetPrev(ChunkIter_t *iterator, Sample *sample) {
     ChunkIterator *iter = (ChunkIterator *)iterator;
-    if (iter->currentIndex >= 0) {
+    if (iter->currentIndex >= 0 && iter->chunk->num_samples > 0) {
         *sample = *ChunkGetSample(iter->chunk, iter->currentIndex);
         iter->currentIndex--;
         return CR_OK;
@@ -277,6 +323,16 @@ void Uncompressed_LoadFromRDB(Chunk_t **chunk, struct RedisModuleIO *io) {
                              (ReadStringBufferFunc)RedisModule_LoadStringBuffer);
 }
 
-void Uncompressed_GearsSerialize(Chunk_t *chunk, Gears_BufferWriter *bw) {}
+void Uncompressed_GearsSerialize(Chunk_t *chunk, Gears_BufferWriter *bw) {
+    Uncompressed_GenericSerialize(chunk,
+                                  bw,
+                                  (SaveUnsignedFunc)RedisGears_BWWriteLong,
+                                  (SaveStringBufferFunc)RedisGears_BWWriteBuffer);
+}
 
-void Uncompressed_GearsDeserialize(Chunk_t *chunk, Gears_BufferReader *br) {}
+void Uncompressed_GearsDeserialize(Chunk_t *chunk, Gears_BufferReader *br) {
+    Uncompressed_Deserialize(chunk,
+                             br,
+                             (ReadUnsignedFunc)RedisGears_BRReadLong,
+                             (ReadStringBufferFunc)ownedBufferFromGears);
+}

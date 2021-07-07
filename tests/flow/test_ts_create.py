@@ -77,7 +77,8 @@ def test_uncompressed():
         assert [[1, b'3.5'], [2, b'4.5'], [3, b'5.5']] == \
                r.execute_command('ts.range', 'not_compressed', 0, -1)
         info = _get_ts_info(r, 'not_compressed')
-        assert info.total_samples == 3 and info.memory_usage == 4136
+        assert info.total_samples == 3 
+        assert info.memory_usage == 4136
 
         # rdb load
         data = r.execute_command('dump', 'not_compressed')
@@ -88,7 +89,8 @@ def test_uncompressed():
         assert [[1, b'3.5'], [2, b'4.5'], [3, b'5.5']] == \
                r.execute_command('ts.range', 'not_compressed', 0, -1)
         info = _get_ts_info(r, 'not_compressed')
-        assert info.total_samples == 3 and info.memory_usage == 4136
+        assert info.total_samples == 3
+        assert info.memory_usage == 4136
         # test deletion
         assert r.delete('not_compressed')
 
@@ -109,9 +111,10 @@ def test_trim():
             untrimmed_info = _get_ts_info(r, 'dont_trim_me')
             assert 2 == trimmed_info.chunk_count
             assert samples == untrimmed_info.total_samples
+            last_uncompressed_chunk_samples = 11
             # extra test for uncompressed
             if mode == "UNCOMPRESSED":
-                assert 11 == trimmed_info.total_samples
+                assert last_uncompressed_chunk_samples == trimmed_info.total_samples
                 assert total_chunk_count == untrimmed_info.chunk_count
 
             r.delete("trim_me")

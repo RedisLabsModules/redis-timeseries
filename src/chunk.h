@@ -11,26 +11,13 @@
 
 #include <sys/types.h>
 
-typedef struct Chunk
-{
-    timestamp_t base_timestamp;
-    Sample *samples;
-    unsigned int num_samples;
-    size_t size;
-} Chunk;
-
-typedef struct ChunkIterator
-{
-    Chunk *chunk;
-    int currentIndex;
-    timestamp_t lastTimestamp;
-    int lastValue;
-    int options;
-} ChunkIterator;
+// Opaque chunk and chunk iterator structs
+typedef struct Chunk Chunk;
+typedef struct ChunkIterator ChunkIterator;
 
 Chunk_t *Uncompressed_NewChunk(size_t sampleCount);
 void Uncompressed_FreeChunk(Chunk_t *chunk);
-
+Chunk_t *Uncompressed_CloneChunk(Chunk_t *chunk);
 /**
  * TODO: describe me
  * @param chunk

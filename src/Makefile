@@ -74,6 +74,8 @@ LIBRMUTIL=$(RMUTIL_LIBDIR)/librmutil.a
 FAST_DOUBLE_PARSER_LIBDIR=$(BINROOT)/fast_double_parser_c
 FAST_DOUBLE_PARSER_SRCDIR=$(SRCDIR)/fast_double_parser_c
 LIBFAST_DOUBLE_PARSER=$(FAST_DOUBLE_PARSER_LIBDIR)/libfast_double_parser_c.a
+LIBIC_SRCDIR=$(ROOT)/deps/TurboPFor-Integer-Compression
+LIBIC=$(LIBIC_SRCDIR)/libic.a
 
 #----------------------------------------------------------------------------------------------
 
@@ -85,6 +87,7 @@ CC=gcc
 CC_FLAGS = \
 	-I$(SDK_DIR) \
 	-I$(ROOT)/deps \
+	-I$(LIBIC_SRCDIR) \
 	-Wall \
 	-fPIC \
 	-pedantic \
@@ -96,7 +99,9 @@ CC_FLAGS = \
 	-DREDISMODULE_EXPERIMENTAL_API
 
 LD_FLAGS += 
-LD_LIBS += -lc -lm -L$(RMUTIL_LIBDIR) -lrmutil -L$(FAST_DOUBLE_PARSER_LIBDIR) -lfast_double_parser_c -lstdc++
+LD_LIBS += -lc -lm -L$(RMUTIL_LIBDIR) -lrmutil \
+	-L$(FAST_DOUBLE_PARSER_LIBDIR) -lfast_double_parser_c -lstdc++ \
+	-L$(LIBIC_SRCDIR) -lic
 
 ifeq ($(OS),linux)
 SO_LD_FLAGS += -shared -Bsymbolic $(LD_FLAGS)
@@ -130,6 +135,7 @@ _SOURCES=\
 	config.c \
 	generic_chunk.c \
 	gorilla.c \
+	turbogorilla_chunk.c \
 	indexer.c \
 	module.c \
 	parse_policies.c \
@@ -181,6 +187,12 @@ rmutil:
 
 $(LIBRMUTIL): rmutil
 
+libic.a:
+	@echo Building $@...
+	$(SHOW)$(MAKE) -C $(LIBIC_SRCDIR) libic.a STATIC=1 -j
+
+$(LIBIC): libic.a
+
 libfast_double_parser_c:
 	@echo Building $@...
 	$(SHOW)$(MAKE) -C $(ROOT)/src/fast_double_parser_c
@@ -206,6 +218,9 @@ clean:
 	-$(SHOW)$(MAKE) -C $(ROOT)/build/rmutil clean
 	-$(SHOW)$(MAKE) -C $(FAST_DOUBLE_PARSER_SRCDIR) clean
 	-$(SHOW)rm -f $(TARGET) $(UNITTESTS_RUNNER)
+ifeq ($(ALL),1)
+	-$(SHOW)$(MAKE) -C $(LIBIC_SRCDIR) clean
+endif
 
 -include $(CC_DEPS)
 
@@ -213,7 +228,7 @@ $(BINDIR)/%.o: $(SRCDIR)/%.c
 	@echo Compiling $<...
 	$(SHOW)$(CC) $(CC_FLAGS) -c $< -o $@
 
-$(TARGET): $(BIN_DIRS) $(OBJECTS) $(LIBRMUTIL) $(LIBFAST_DOUBLE_PARSER)
+$(TARGET): $(BIN_DIRS) $(OBJECTS) $(LIBRMUTIL) $(LIBFAST_DOUBLE_PARSER) $(LIBIC)
 	@echo Linking $@...
 	$(SHOW)$(CC) $(SO_LD_FLAGS) -o $@ $(OBJECTS) $(LD_LIBS)
 	$(SHOW)cd $(BINROOT)/..; ln -sf $(FULL_VARIANT)/$(notdir $(TARGET)) $(notdir $(TARGET))

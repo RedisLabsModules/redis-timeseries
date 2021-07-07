@@ -11,6 +11,7 @@
 #include "RedisModulesSDK/redismodule.h"
 #include "common.h"
 #include "compaction.h"
+#include "compressed_chunk.h"
 #include "config.h"
 #include "fast_double_parser_c/fast_double_parser_c.h"
 #include "gears_commands.h"
@@ -38,6 +39,12 @@
 #endif
 
 RedisModuleType *SeriesType;
+
+static int _add_parse_ts_value(const RedisModuleCtx *ctx,
+                               const RedisModuleString *timestampStr,
+                               const RedisModuleString *valueStr,
+                               timestamp_t *ts,
+                               double *v);
 
 int TSDB_info(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     RedisModule_AutoMemory(ctx);
@@ -78,11 +85,7 @@ int TSDB_info(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     RedisModule_ReplyWithSimpleString(ctx, "chunkSize");
     RedisModule_ReplyWithLongLong(ctx, series->chunkSizeBytes);
     RedisModule_ReplyWithSimpleString(ctx, "chunkType");
-    if (series->options & SERIES_OPT_UNCOMPRESSED) {
-        RedisModule_ReplyWithSimpleString(ctx, "uncompressed");
-    } else {
-        RedisModule_ReplyWithSimpleString(ctx, "compressed");
-    };
+    RedisModule_ReplyWithSimpleString(ctx, ChunkTypeToString(series->options));
     RedisModule_ReplyWithSimpleString(ctx, "duplicatePolicy");
     if (series->duplicatePolicy != DP_NONE) {
         RedisModule_ReplyWithSimpleString(ctx, DuplicatePolicyToString(series->duplicatePolicy));
@@ -431,45 +434,34 @@ static inline int add(RedisModuleCtx *ctx,
                       RedisModuleString *valueStr,
                       RedisModuleString **argv,
                       int argc) {
-    RedisModuleKey *key = RedisModule_OpenKey(ctx, keyName, REDISMODULE_READ | REDISMODULE_WRITE);
     double value;
-    const char *valueCStr = RedisModule_StringPtrLen(valueStr, NULL);
-    if ((fast_double_parser_c_parse_number(valueCStr, &value) == NULL))
-        return RTS_ReplyGeneralError(ctx, "TSDB: invalid value");
-
-    long long timestampValue;
-    if ((RedisModule_StringToLongLong(timestampStr, &timestampValue) != REDISMODULE_OK)) {
-        // if timestamp is "*", take current time (automatic timestamp)
-        if (RMUtil_StringEqualsC(timestampStr, "*"))
-            timestampValue = RedisModule_Milliseconds();
-        else
-            return RTS_ReplyGeneralError(ctx, "TSDB: invalid timestamp");
-    }
-
-    if (timestampValue < 0) {
-        return RTS_ReplyGeneralError(ctx, "TSDB: invalid timestamp, must be positive number");
-    }
-    api_timestamp_t timestamp = (u_int64_t)timestampValue;
+    u_int64_t timestamp;
+    if (_add_parse_ts_value(ctx, timestampStr, valueStr, &timestamp, &value) != TRUE)
+        return REDISMODULE_ERR;
 
     Series *series = NULL;
     DuplicatePolicy dp = DP_NONE;
+    RedisModuleKey *key = RedisModule_OpenKey(ctx, keyName, REDISMODULE_READ | REDISMODULE_WRITE);
 
     if (argv != NULL && RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY) {
         // the key doesn't exist, lets check we have enough information to create one
         CreateCtx cCtx = { 0 };
         if (parseCreateArgs(ctx, argv, argc, &cCtx) != REDISMODULE_OK) {
+            RedisModule_CloseKey(key);
             return REDISMODULE_ERR;
         }
 
         CreateTsKey(ctx, keyName, &cCtx, &series, &key);
         SeriesCreateRulesFromGlobalConfig(ctx, keyName, series, cCtx.labels, cCtx.labelsCount);
     } else if (RedisModule_ModuleTypeGetType(key) != SeriesType) {
+        RedisModule_CloseKey(key);
         return RTS_ReplyGeneralError(ctx, "TSDB: the key is not a TSDB key");
     } else {
         series = RedisModule_ModuleTypeGetValue(key);
         //  overwride key and database configuration for DUPLICATE_POLICY
         if (argv != NULL &&
             ParseDuplicatePolicy(ctx, argv, argc, TS_ADD_DUPLICATE_POLICY_ARG, &dp) != TSDB_OK) {
+            RedisModule_CloseKey(key);
             return REDISMODULE_ERR;
         }
     }
@@ -478,19 +470,56 @@ static inline int add(RedisModuleCtx *ctx,
     return rv;
 }
 
-int TSDB_madd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-    RedisModule_AutoMemory(ctx);
+static int _add_parse_ts_value(const RedisModuleCtx *ctx,
+                               const RedisModuleString *timestampStr,
+                               const RedisModuleString *valueStr,
+                               api_timestamp_t *timestamp,
+                               double *value) {
+    const char *valueCStr = RedisModule_StringPtrLen(valueStr, NULL);
+    if ((fast_double_parser_c_parse_number(valueCStr, value) == NULL)) {
+        RTS_ReplyGeneralError(ctx, "TSDB: invalid value");
+        return FALSE;
+    }
 
+    long long timestampValue;
+    if ((RedisModule_StringToLongLong(timestampStr, &timestampValue) != REDISMODULE_OK)) {
+        // if timestamp is "*", take current time (automatic timestamp)
+        if (RMUtil_StringEqualsC(timestampStr, "*")) {
+            timestampValue = RedisModule_Milliseconds();
+        } else {
+            RTS_ReplyGeneralError(ctx, "TSDB: invalid timestamp");
+            return FALSE;
+        }
+    }
+
+    if (timestampValue < 0) {
+        RTS_ReplyGeneralError(ctx, "TSDB: invalid timestamp, must be positive number");
+        return FALSE;
+    }
+    *timestamp = (u_int64_t)timestampValue;
+    return TRUE;
+}
+
+int TSDB_madd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     if (argc < 4 || (argc - 1) % 3 != 0) {
         return RedisModule_WrongArity(ctx);
     }
 
     RedisModule_ReplyWithArray(ctx, (argc - 1) / 3);
     for (int i = 1; i < argc; i += 3) {
+        RedisModuleKey *key;
+        Series *serie;
         RedisModuleString *keyName = argv[i];
         RedisModuleString *timestampStr = argv[i + 1];
         RedisModuleString *valueStr = argv[i + 2];
-        add(ctx, keyName, timestampStr, valueStr, NULL, -1);
+        double value;
+        u_int64_t timestamp;
+        if (_add_parse_ts_value(ctx, timestampStr, valueStr, &timestamp, &value) != TRUE)
+            continue;
+        if (GetSeries(ctx, keyName, &key, &serie, REDISMODULE_READ | REDISMODULE_WRITE) != TRUE)
+            continue;
+        internalAdd(ctx, serie, timestamp, value, DP_NONE);
+        RedisModule_CloseKey(key);
     }
     RedisModule_ReplicateVerbatim(ctx);
 
@@ -508,9 +537,9 @@ int TSDB_add(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         return RedisModule_WrongArity(ctx);
     }
 
-    RedisModuleString *keyName = argv[1];
-    RedisModuleString *timestampStr = argv[2];
-    RedisModuleString *valueStr = argv[3];
+    const RedisModuleString *keyName = argv[1];
+    const RedisModuleString *timestampStr = argv[2];
+    const RedisModuleString *valueStr = argv[3];
 
     int result = add(ctx, keyName, timestampStr, valueStr, argv, argc);
     RedisModule_ReplicateVerbatim(ctx);
@@ -541,8 +570,6 @@ int CreateTsKey(RedisModuleCtx *ctx,
 }
 
 int TSDB_create(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-    RedisModule_AutoMemory(ctx);
-
     if (argc < 2) {
         return RedisModule_WrongArity(ctx);
     }
@@ -751,8 +778,6 @@ int TSDB_createRule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 TS.INCRBY ts_key NUMBER [TIMESTAMP timestamp]
 */
 int TSDB_incrby(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-    RedisModule_AutoMemory(ctx);
-
     if (argc < 3) {
         return RedisModule_WrongArity(ctx);
     }
@@ -1011,6 +1036,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) 
     }
 
     if (ReadConfig(ctx, argv, argc) == TSDB_ERROR) {
+        RedisModule_Log(
+            ctx, "warning", "Failed to parse RedisTimeSeries configurations. aborting...");
         return REDISMODULE_ERR;
     }
 

@@ -25,7 +25,7 @@ typedef struct
 extern TSConfig TSGlobalConfig;
 
 int ReadConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
-
+const char *ChunkTypeToString(int options);
 typedef struct RTS_RedisVersion
 {
     int redisMajorVersion;

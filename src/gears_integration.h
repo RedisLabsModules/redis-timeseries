@@ -36,7 +36,7 @@ int SeriesRecord_Serialize(ExecutionCtx *ctx, Gears_BufferWriter *bw, Record *ba
 Record *SeriesRecord_Deserialize(ExecutionCtx *ctx, Gears_BufferReader *br);
 int SeriesRecord_SendReply(Record *record, RedisModuleCtx *rctx);
 Series *SeriesRecord_IntoSeries(SeriesRecord *record);
-
+char *ownedBufferFromGears(Gears_BufferReader *br, size_t *len);
 int register_rg(RedisModuleCtx *ctx);
 bool IsGearsLoaded();
 

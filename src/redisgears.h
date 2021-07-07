@@ -528,13 +528,13 @@ void MODULE_API_FUNC(RedisGears_AddConfigHooks)(BeforeConfigSet before, AfterCon
 #define REDISGEARS_MODULE_INIT_FUNCTION(ctx, name) \
         RedisGears_ ## name = RedisModule_GetSharedAPI(ctx, "RedisGears_" #name);\
         if(!RedisGears_ ## name){\
-            RedisModule_Log(ctx, "warning", "could not initialize RedisGears_" #name "\r\n");\
+            RedisModule_Log(ctx, "warning", "could not initialize RedisGears_" #name );\
             return REDISMODULE_ERR; \
         }
 
 #define REDISMODULE_MODULE_INIT_FUNCTION(ctx, name) \
         if(RedisModule_GetApi("RedisModule_" #name, &RedisModule_ ## name) != REDISMODULE_OK){ \
-            RedisModule_Log(ctx, "warning", "could not initialize RedisModule_" #name "\r\n");\
+            RedisModule_Log(ctx, "warning", "could not initialize RedisModule_" #name );\
             return REDISMODULE_ERR; \
         }
 

@@ -1,0 +1,12 @@
+name: "compressed:turbo_gorilla__tsbs-scale100_double-groupby-5"
+remote:
+  - type: oss-standalone
+  - setup: redistimeseries-m5
+dbconfig:
+  - dataset: "https://s3.amazonaws.com/benchmarks.redislabs/redistimeseries/tsbs/datasets/devops/scale100/compressed:turbo_gorilla__devops-scale100-4days.rdb"
+clientconfig:
+  - tool: tsbs_run_queries_redistimeseries
+  - parameters:
+    - workers: 64
+    - max-queries: 1000
+    - file: "https://s3.amazonaws.com/benchmarks.redislabs/redistimeseries/tsbs/queries/devops/scale100/devops-scale100-4days/queries_cpu-only_redistimeseries_100_double-groupby-5_10000.dat"

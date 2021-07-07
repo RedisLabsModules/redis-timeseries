@@ -121,7 +121,7 @@ def test_negative_configuration():
     Env().skipOnCluster()
 
     with pytest.raises(Exception) as excinfo:
-        env = Env(moduleArgs='CHUNK_TYPE; CHUNK_SIZE_BYTES 100')
+        env = Env(moduleArgs='CHUNK_TYPE; CHUNK_SIZE_BYTES 100',)
 
     with pytest.raises(Exception) as excinfo:
         env = Env(moduleArgs='CHUNK_TYPE compressed; COMPACTION_POLICY')

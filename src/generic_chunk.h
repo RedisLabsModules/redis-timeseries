@@ -37,7 +37,8 @@ typedef void ChunkIter_t;
 typedef enum CHUNK_TYPES_T
 {
     CHUNK_REGULAR,
-    CHUNK_COMPRESSED
+    CHUNK_COMPRESSED,
+    CHUNK_COMPRESSED_TURBOGORILLA
 } CHUNK_TYPES_T;
 
 typedef struct UpsertCtx
@@ -80,7 +81,9 @@ typedef struct ChunkFuncs
     void (*GearsDeserialize)(Chunk_t **chunk, Gears_BufferReader *br);
 } ChunkFuncs;
 
-ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Sample *newSample);
+ChunkResult handleDuplicateSample(DuplicatePolicy policy,
+                                  const double oldSample,
+                                  double *newSample);
 const char *DuplicatePolicyToString(DuplicatePolicy policy);
 int RMStringLenDuplicationPolicyToEnum(RedisModuleString *aggTypeStr);
 DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len);

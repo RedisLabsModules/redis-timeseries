@@ -7,6 +7,7 @@
 #include "compressed_chunk.h"
 
 #include "chunk.h"
+#include "gears_integration.h"
 #include "generic_chunk.h"
 
 #include <assert.h> // assert
@@ -62,16 +63,18 @@ static void ensureAddSample(CompressedChunk *chunk, Sample *sample) {
         chunk->size += CHUNK_RESIZE_STEP;
         chunk->data = (u_int64_t *)realloc(chunk->data, chunk->size * sizeof(char));
         memset((char *)chunk->data + oldsize, 0, CHUNK_RESIZE_STEP);
-        // printf("Chunk extended to %lu \n", chunk->size);
         res = Compressed_AddSample(chunk, sample);
+#ifdef DEBUG
         assert(res == CR_OK);
+#endif
     }
 }
 
 static void trimChunk(CompressedChunk *chunk) {
     int excess = (chunk->size * BIT - chunk->idx) / BIT;
-
+#ifdef DEBUG
     assert(excess >= 0); // else we have written beyond allocated memory
+#endif
 
     if (excess > 1) {
         size_t newSize = chunk->size - excess + 1;
@@ -137,12 +140,14 @@ ChunkResult Compressed_UpsertSample(UpsertCtx *uCtx, int *size, DuplicatePolicy 
     }
 
     if (ts == iterSample.timestamp) {
-        ChunkResult cr = handleDuplicateSample(duplicatePolicy, iterSample, &uCtx->sample);
+        double v = uCtx->sample.value;
+        ChunkResult cr = handleDuplicateSample(duplicatePolicy, iterSample.value, &v);
         if (cr != CR_OK) {
             Compressed_FreeChunkIterator(iter);
             Compressed_FreeChunk(newChunk);
             return CR_ERR;
         }
+        uCtx->sample.value = v;
         nextRes = Compressed_ChunkIteratorGetNext(iter, &iterSample);
         *size = -1; // we skipped a sample
     }
@@ -343,17 +348,6 @@ void Compressed_GearsSerialize(Chunk_t *chunk, Gears_BufferWriter *bw) {
                          bw,
                          (SaveUnsignedFunc)RedisGears_BWWriteLong,
                          (SaveStringBufferFunc)RedisGears_BWWriteBuffer);
-}
-
-static char *ownedBufferFromGears(Gears_BufferReader *br, size_t *len) {
-    size_t size = 0;
-    const char *temp = RedisGears_BRReadBuffer(br, &size);
-    char *ret = malloc(size);
-    memcpy(ret, temp, size);
-    if (len != NULL) {
-        *len = size;
-    }
-    return ret;
 }
 
 void Compressed_GearsDeserialize(Chunk_t **chunk, Gears_BufferReader *br) {

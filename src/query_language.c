@@ -101,8 +101,20 @@ int parseCreateArgs(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, Cre
         return REDISMODULE_ERR;
     }
 
-    if (RMUtil_ArgIndex("UNCOMPRESSED", argv, argc) > 0) {
+    if (RMUtil_ArgIndex(UNCOMPRESSED_ARG_STR, argv, argc) > 0) {
+        cCtx->options &= ~SERIES_OPT_DEFAULT_COMPRESSION;
         cCtx->options |= SERIES_OPT_UNCOMPRESSED;
+    }
+
+    if (RMUtil_ArgIndex(COMPRESSED_GORILLA_ARG_STR, argv, argc) > 0 ||
+        RMUtil_ArgIndex(COMPRESSED_GORILLA_ARG_STR_OLD, argv, argc) > 0) {
+        cCtx->options &= ~SERIES_OPT_DEFAULT_COMPRESSION;
+        cCtx->options |= SERIES_OPT_COMPRESSED_GORILLA;
+    }
+
+    if (RMUtil_ArgIndex(COMPRESSED_TURBO_GORILLA_ARG_STR, argv, argc) > 0) {
+        cCtx->options &= ~SERIES_OPT_DEFAULT_COMPRESSION;
+        cCtx->options |= SERIES_OPT_COMPRESSED_TURBOGORILLA;
     }
 
     cCtx->duplicatePolicy = DP_NONE;

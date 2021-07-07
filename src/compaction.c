@@ -6,16 +6,27 @@
 #include "compaction.h"
 
 #include <ctype.h>
-#include <math.h> // sqrt
+#include <float.h> // DBL_MAX, DBL_MIN
+#include <math.h>  // sqrt
 #include <string.h>
 #include <rmutil/alloc.h>
 
-typedef struct MaxMinContext
+typedef struct MinContext
+{
+    double value;
+} MinContext;
+
+typedef struct MaxContext
+{
+    double value;
+} MaxContext;
+
+typedef struct RangeContext
 {
     double minValue;
     double maxValue;
     char isResetted;
-} MaxMinContext;
+} RangeContext;
 
 typedef struct SingleValueContext
 {
@@ -240,79 +251,72 @@ static AggregationClass aggVarS = { .createContext = StdCreateContext,
                                     .readContext = StdReadContext,
                                     .resetContext = StdReset };
 
-void *MaxMinCreateContext() {
-    MaxMinContext *context = (MaxMinContext *)malloc(sizeof(MaxMinContext));
-    context->minValue = 0;
-    context->maxValue = 0;
-    context->isResetted = TRUE;
+void *MinCreateContext() {
+    MinContext *context = (MinContext *)malloc(sizeof(MinContext));
+    context->value = DBL_MAX;
     return context;
 }
 
-void MaxMinAppendValue(void *contextPtr, double value) {
-    MaxMinContext *context = (MaxMinContext *)contextPtr;
-    if (context->isResetted) {
-        context->isResetted = FALSE;
-        context->maxValue = value;
-        context->minValue = value;
-    } else {
-        if (value > context->maxValue) {
-            context->maxValue = value;
-        }
-        if (value < context->minValue) {
-            context->minValue = value;
-        }
+void MinAppendValue(void *contextPtr, double value) {
+    MinContext *context = (MinContext *)contextPtr;
+    if (value < context->value) {
+        context->value = value;
+    }
+}
+
+int MinFinalize(void *contextPtr, double *value) {
+    MinContext *context = (MinContext *)contextPtr;
+    *value = context->value;
+    return TSDB_OK;
+}
+
+void MinReset(void *contextPtr) {
+    MinContext *context = (MinContext *)contextPtr;
+    context->value = DBL_MAX;
+}
+
+void MinWriteContext(void *contextPtr, RedisModuleIO *io) {
+    MinContext *context = (MinContext *)contextPtr;
+    RedisModule_SaveDouble(io, context->value);
+}
+
+void MinReadContext(void *contextPtr, RedisModuleIO *io) {
+    MinContext *context = (MinContext *)contextPtr;
+    context->value = RedisModule_LoadDouble(io);
+}
+
+void *MaxCreateContext() {
+    MaxContext *context = (MaxContext *)malloc(sizeof(MinContext));
+    context->value = DBL_MIN;
+    return context;
+}
+
+void MaxAppendValue(void *contextPtr, double value) {
+    MaxContext *context = (MaxContext *)contextPtr;
+    if (value > context->value) {
+        context->value = value;
     }
 }
 
 int MaxFinalize(void *contextPtr, double *value) {
-    MaxMinContext *context = (MaxMinContext *)contextPtr;
-    if (context->isResetted == TRUE) {
-        return TSDB_ERROR;
-    }
-    *value = context->maxValue;
+    MaxContext *context = (MaxContext *)contextPtr;
+    *value = context->value;
     return TSDB_OK;
 }
 
-int MinFinalize(void *contextPtr, double *value) {
-    MaxMinContext *context = (MaxMinContext *)contextPtr;
-    if (context->isResetted == TRUE) {
-        return TSDB_ERROR;
-    }
-    *value = context->minValue;
-    return TSDB_OK;
+void MaxReset(void *contextPtr) {
+    MaxContext *context = (MaxContext *)contextPtr;
+    context->value = DBL_MIN;
 }
 
-int RangeFinalize(void *contextPtr, double *value) {
-    MaxMinContext *context = (MaxMinContext *)contextPtr;
-    if (context->isResetted == TRUE) {
-        return TSDB_ERROR;
-    }
-    *value = context->maxValue - context->minValue;
-    return TSDB_OK;
+void MaxWriteContext(void *contextPtr, RedisModuleIO *io) {
+    MaxContext *context = (MaxContext *)contextPtr;
+    RedisModule_SaveDouble(io, context->value);
 }
 
-void MaxMinReset(void *contextPtr) {
-    MaxMinContext *context = (MaxMinContext *)contextPtr;
-    context->maxValue = 0;
-    context->minValue = 0;
-    context->isResetted = TRUE;
-}
-
-void MaxMinWriteContext(void *contextPtr, RedisModuleIO *io) {
-    MaxMinContext *context = (MaxMinContext *)contextPtr;
-    RedisModule_SaveDouble(io, context->maxValue);
-    RedisModule_SaveDouble(io, context->minValue);
-    RedisModule_SaveStringBuffer(io, &context->isResetted, 1);
-}
-
-void MaxMinReadContext(void *contextPtr, RedisModuleIO *io) {
-    MaxMinContext *context = (MaxMinContext *)contextPtr;
-    size_t len = 1;
-    context->maxValue = RedisModule_LoadDouble(io);
-    context->minValue = RedisModule_LoadDouble(io);
-    char *sb = RedisModule_LoadStringBuffer(io, &len);
-    context->isResetted = sb[0];
-    free(sb);
+void MaxReadContext(void *contextPtr, RedisModuleIO *io) {
+    MaxContext *context = (MaxContext *)contextPtr;
+    context->value = RedisModule_LoadDouble(io);
 }
 
 void SumAppendValue(void *contextPtr, double value) {
@@ -347,21 +351,87 @@ void LastAppendValue(void *contextPtr, double value) {
     context->isResetted = FALSE;
 }
 
-static AggregationClass aggMax = { .createContext = MaxMinCreateContext,
-                                   .appendValue = MaxMinAppendValue,
+void *RangeCreateContext() {
+    RangeContext *context = (RangeContext *)malloc(sizeof(RangeContext));
+    context->minValue = 0;
+    context->maxValue = 0;
+    context->isResetted = TRUE;
+    return context;
+}
+
+void RangeAppendValue(void *contextPtr, double value) {
+    RangeContext *context = (RangeContext *)contextPtr;
+    if (context->isResetted) {
+        context->isResetted = FALSE;
+        context->maxValue = value;
+        context->minValue = value;
+    } else {
+        if (value > context->maxValue) {
+            context->maxValue = value;
+        }
+        if (value < context->minValue) {
+            context->minValue = value;
+        }
+    }
+}
+
+int RangeMinFinalize(void *contextPtr, double *value) {
+    RangeContext *context = (RangeContext *)contextPtr;
+    if (context->isResetted == TRUE) {
+        return TSDB_ERROR;
+    }
+    *value = context->minValue;
+    return TSDB_OK;
+}
+
+int RangeFinalize(void *contextPtr, double *value) {
+    RangeContext *context = (RangeContext *)contextPtr;
+    if (context->isResetted == TRUE) {
+        return TSDB_ERROR;
+    }
+    *value = context->maxValue - context->minValue;
+    return TSDB_OK;
+}
+
+void RangeReset(void *contextPtr) {
+    RangeContext *context = (RangeContext *)contextPtr;
+    context->maxValue = 0;
+    context->minValue = 0;
+    context->isResetted = TRUE;
+}
+
+void RangeWriteContext(void *contextPtr, RedisModuleIO *io) {
+    RangeContext *context = (RangeContext *)contextPtr;
+    RedisModule_SaveDouble(io, context->maxValue);
+    RedisModule_SaveDouble(io, context->minValue);
+    RedisModule_SaveStringBuffer(io, &context->isResetted, 1);
+}
+
+void RangeReadContext(void *contextPtr, RedisModuleIO *io) {
+    RangeContext *context = (RangeContext *)contextPtr;
+    size_t len = 1;
+    context->maxValue = RedisModule_LoadDouble(io);
+    context->minValue = RedisModule_LoadDouble(io);
+    char *sb = RedisModule_LoadStringBuffer(io, &len);
+    context->isResetted = sb[0];
+    free(sb);
+}
+
+static AggregationClass aggMax = { .createContext = MaxCreateContext,
+                                   .appendValue = MaxAppendValue,
                                    .freeContext = rm_free,
                                    .finalize = MaxFinalize,
-                                   .writeContext = MaxMinWriteContext,
-                                   .readContext = MaxMinReadContext,
-                                   .resetContext = MaxMinReset };
+                                   .writeContext = MaxWriteContext,
+                                   .readContext = MaxReadContext,
+                                   .resetContext = MaxReset };
 
-static AggregationClass aggMin = { .createContext = MaxMinCreateContext,
-                                   .appendValue = MaxMinAppendValue,
+static AggregationClass aggMin = { .createContext = MinCreateContext,
+                                   .appendValue = MinAppendValue,
                                    .freeContext = rm_free,
                                    .finalize = MinFinalize,
-                                   .writeContext = MaxMinWriteContext,
-                                   .readContext = MaxMinReadContext,
-                                   .resetContext = MaxMinReset };
+                                   .writeContext = MinWriteContext,
+                                   .readContext = MinReadContext,
+                                   .resetContext = MinReset };
 
 static AggregationClass aggSum = { .createContext = SingleValueCreateContext,
                                    .appendValue = SumAppendValue,
@@ -395,13 +465,13 @@ static AggregationClass aggLast = { .createContext = SingleValueCreateContext,
                                     .readContext = SingleValueReadContext,
                                     .resetContext = SingleValueReset };
 
-static AggregationClass aggRange = { .createContext = MaxMinCreateContext,
-                                     .appendValue = MaxMinAppendValue,
+static AggregationClass aggRange = { .createContext = RangeCreateContext,
+                                     .appendValue = RangeAppendValue,
                                      .freeContext = rm_free,
                                      .finalize = RangeFinalize,
-                                     .writeContext = MaxMinWriteContext,
-                                     .readContext = MaxMinReadContext,
-                                     .resetContext = MaxMinReset };
+                                     .writeContext = RangeWriteContext,
+                                     .readContext = RangeReadContext,
+                                     .resetContext = RangeReset };
 
 int StringAggTypeToEnum(const char *agg_type) {
     return StringLenAggTypeToEnum(agg_type, strlen(agg_type));

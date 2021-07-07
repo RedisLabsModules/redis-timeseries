@@ -19,7 +19,7 @@ MU_TEST(test_Uncompressed_NewChunk) {
     for (size_t chunk_size = 2; chunk_size < max_chunk_size; chunk_size += 64) {
         Chunk *chunk = Uncompressed_NewChunk(chunk_size);
         mu_assert(chunk != NULL, "create uncompressed chunk");
-        mu_assert_short_eq(0, chunk->num_samples);
+        mu_assert_short_eq(0, Uncompressed_NumOfSample(chunk));
         Uncompressed_FreeChunk(chunk);
     }
 }
@@ -29,7 +29,7 @@ MU_TEST(test_Uncompressed_Uncompressed_AddSample) {
     const size_t chunk_size = 4096; // 4096 bytes (data) chunck
     Chunk *chunk = Uncompressed_NewChunk(chunk_size);
     mu_assert(chunk != NULL, "create uncompressed chunk");
-    mu_assert_short_eq(0, chunk->num_samples);
+    mu_assert_short_eq(0, Uncompressed_NumOfSample(chunk));
     ChunkResult rv = CR_OK;
     int64_t ts = 1;
     int64_t total_added_samples = 0;
@@ -42,7 +42,7 @@ MU_TEST(test_Uncompressed_Uncompressed_AddSample) {
         mu_assert(rv == CR_OK || rv == CR_END, "add sample");
         if (rv != CR_END) {
             total_added_samples++;
-            mu_assert_int_eq(total_added_samples, chunk->num_samples);
+            mu_assert_int_eq(total_added_samples, Uncompressed_NumOfSample(chunk));
         }
     }
     const size_t chunk_current_size = Uncompressed_GetChunkSize(chunk, false);
@@ -55,7 +55,7 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample) {
     const size_t chunk_size = 4096; // 4096 bytes (data) chunck
     Chunk *chunk = Uncompressed_NewChunk(chunk_size);
     mu_assert(chunk != NULL, "create uncompressed chunk");
-    mu_assert_short_eq(0, chunk->num_samples);
+    mu_assert_short_eq(0, Uncompressed_NumOfSample(chunk));
     ChunkResult rv = CR_OK;
     int64_t ts = 1;
     int64_t total_added_samples = 0;
@@ -68,7 +68,7 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample) {
         mu_assert(rv == CR_OK || rv == CR_END, "add sample");
         if (rv != CR_END) {
             total_added_samples++;
-            mu_assert_int_eq(total_added_samples, chunk->num_samples);
+            mu_assert_int_eq(total_added_samples, Uncompressed_NumOfSample(chunk));
         }
     }
     const size_t chunk_current_size = Uncompressed_GetChunkSize(chunk, false);
@@ -86,7 +86,7 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample) {
     rv = Uncompressed_UpsertSample(&uCtxS3, &size, DP_LAST);
     total_added_samples++;
     mu_assert(rv == CR_OK, "upsert");
-    mu_assert_int_eq(total_added_samples, chunk->num_samples);
+    mu_assert_int_eq(total_added_samples, Uncompressed_NumOfSample(chunk));
     Uncompressed_FreeChunk(chunk);
 }
 
@@ -95,7 +95,7 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample_DuplicatePolicy) {
     const size_t chunk_size = 4096; // 4096 bytes (data) chunck
     Chunk *chunk = Uncompressed_NewChunk(chunk_size);
     mu_assert(chunk != NULL, "create uncompressed chunk");
-    mu_assert_short_eq(0, chunk->num_samples);
+    mu_assert_short_eq(0, Uncompressed_NumOfSample(chunk));
     ChunkResult rv = CR_OK;
     Sample s1 = { .timestamp = 1, .value = -0.5 };
     Sample s2 = { .timestamp = 1, .value = -0.6 };
@@ -107,36 +107,42 @@ MU_TEST(test_Uncompressed_Uncompressed_UpsertSample_DuplicatePolicy) {
     };
 
     int size = 0;
+    double v;
     // We're forcing the chunk to insert a duplicate and test different policies
     // DP_BLOCK should not change old sample
     rv = Uncompressed_UpsertSample(&uCtx, &size, DP_BLOCK);
     mu_assert(rv == CR_ERR, "duplicate block");
-    mu_assert_int_eq(1, chunk->num_samples);
+    mu_assert_int_eq(1, Uncompressed_NumOfSample(chunk));
     const u_int64_t firstTs = Uncompressed_GetFirstTimestamp(chunk);
     mu_assert_int_eq(1, firstTs);
-    mu_assert_double_eq(-0.5, chunk->samples[0].value);
+    Uncompressed_GetSampleValueAtPos(chunk, 0, &v);
+    mu_assert_double_eq(-0.5, v);
     // DP_MAX should keep -0.5 given that -0.4 is smaller
     uCtx.sample.value = -0.4;
     rv = Uncompressed_UpsertSample(&uCtx, &size, DP_MIN);
     mu_assert(rv == CR_OK, "duplicate min not changing old value");
-    mu_assert_int_eq(1, chunk->num_samples);
-    mu_assert_double_eq(-0.5, chunk->samples[0].value);
+    mu_assert_int_eq(1, Uncompressed_NumOfSample(chunk));
+    Uncompressed_GetSampleValueAtPos(chunk, 0, &v);
+    mu_assert_double_eq(-0.5, v);
     // DP_MIN should replace -0.5 by -0.6
     uCtx.sample.value = -0.6;
     rv = Uncompressed_UpsertSample(&uCtx, &size, DP_MIN);
     mu_assert(rv == CR_OK, "duplicate min changing old value");
-    mu_assert_int_eq(1, chunk->num_samples);
-    mu_assert_double_eq(-0.6, chunk->samples[0].value);
+    mu_assert_int_eq(1, Uncompressed_NumOfSample(chunk));
+    Uncompressed_GetSampleValueAtPos(chunk, 0, &v);
+    mu_assert_double_eq(-0.6, v);
     // DP_MAX should keep -0.6 given that -1 is smaller
     uCtx.sample.value = -1.0;
     rv = Uncompressed_UpsertSample(&uCtx, &size, DP_MAX);
     mu_assert(rv == CR_OK, "duplicate max not changing old value");
-    mu_assert_double_eq(-0.6, chunk->samples[0].value);
+    Uncompressed_GetSampleValueAtPos(chunk, 0, &v);
+    mu_assert_double_eq(-0.6, v);
     // DP_MAX should replace -0.6 by -0.2
     uCtx.sample.value = -0.2;
     rv = Uncompressed_UpsertSample(&uCtx, &size, DP_MAX);
     mu_assert(rv == CR_OK, "duplicate max changing old value");
-    mu_assert_double_eq(-0.2, chunk->samples[0].value);
+    Uncompressed_GetSampleValueAtPos(chunk, 0, &v);
+    mu_assert_double_eq(-0.2, v);
     Uncompressed_FreeChunk(chunk);
 }
 

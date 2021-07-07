@@ -7,4 +7,6 @@
 [submodule "deps/fast_double_parser"]
 	path = deps/fast_double_parser
 	url = https://github.com/lemire/fast_double_parser.git
-
+[submodule "deps/TurboPFor-Integer-Compression"]
+	path = deps/TurboPFor-Integer-Compression
+	url = https://github.com/filipecosta90/TurboPFor-Integer-Compression.git

@@ -92,7 +92,7 @@ def test_groupby_reduce_multiple_groups():
     with env.getClusterConnectionIfNeeded() as r:
         assert r.execute_command('TS.ADD', 's1', 1, 100, 'LABELS', 'HOST', 'A', 'REGION', 'EU', 'PROVIDER', 'AWS')
         assert r.execute_command('TS.ADD', 's2', 1, 55, 'LABELS', 'HOST', 'B', 'REGION', 'EU', 'PROVIDER', 'AWS')
-        assert r.execute_command('TS.ADD', 's2', 2, 90, 'LABELS', 'HOST', 'B', 'REGION', 'EU', 'PROVIDER', 'AWS')
+        assert r.execute_command('TS.ADD', 's2', 2, 90)
         assert r.execute_command('TS.ADD', 's3', 2, 40, 'LABELS', 'HOST', 'C', 'REGION', 'US', 'PROVIDER', 'AWS')
 
         actual_result = r.execute_command(

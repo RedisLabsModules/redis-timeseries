@@ -13,6 +13,7 @@
 #define FALSE 0
 
 #define SAMPLE_SIZE sizeof(Sample)
+#define TURBOGORILLA_SAMPLE_SIZE (sizeof(u_int64_t)+sizeof(double))
 
 #define timestamp_t u_int64_t
 #define api_timestamp_t u_int64_t
@@ -62,6 +63,12 @@ typedef enum DuplicatePolicy {
 /* Series struct options */
 #define SERIES_OPT_UNCOMPRESSED 0x1
 
+#define SERIES_OPT_COMPRESSED_GORILLA 0x2
+
+#define SERIES_OPT_COMPRESSED_TURBOGORILLA 0x4
+
+#define SERIES_OPT_DEFAULT_COMPRESSION SERIES_OPT_COMPRESSED_GORILLA
+
 /* Chunk enum */
 typedef enum {
   CR_OK = 0,    // RM_OK
@@ -73,6 +80,10 @@ typedef enum {
 
 #define DUPLICATE_POLICY_ARG "DUPLICATE_POLICY"
 #define TS_ADD_DUPLICATE_POLICY_ARG "ON_DUPLICATE"
+#define UNCOMPRESSED_ARG_STR "uncompressed"
+#define COMPRESSED_GORILLA_ARG_STR_OLD "compressed"
+#define COMPRESSED_GORILLA_ARG_STR "compressed:gorilla"
+#define COMPRESSED_TURBO_GORILLA_ARG_STR "compressed:turbo_gorilla"
 
 #define SAMPLES_TO_BYTES(size) (size * sizeof(Sample))
 

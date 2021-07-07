@@ -423,7 +423,9 @@ void QueryPredicateList_Free(QueryPredicateList *list) {
         list->ref--;
         return;
     }
+#ifdef DEBUG
     assert(list->ref == 1);
+#endif
 
     for (int i = 0; i < list->count; i++) {
         QueryPredicate_Free(&list->list[i], 1);

@@ -40,15 +40,15 @@ help() {
 #----------------------------------------------------------------------------------------------
 
 setup_redis_server() {
-	if [[ $VALGRIND == 1 ]]; then
-		REDIS_SERVER=${REDIS_SERVER:-redis-server-vg}
-		if ! is_command $REDIS_SERVER; then
-			echo Building Redis for Valgrind ...
-			$READIES/bin/getredis -v $VALGRIND_REDIS_VER --valgrind --suffix vg
-		fi
-	else
+	# if [[ $VALGRIND == 1 ]]; then
+	# 	REDIS_SERVER=${REDIS_SERVER:-redis-server-vg}
+	# 	if ! is_command $REDIS_SERVER; then
+	# 		echo Building Redis for Valgrind ...
+	# 		$READIES/bin/getredis -v $VALGRIND_REDIS_VER --valgrind --suffix vg
+	# 	fi
+	# else
 		REDIS_SERVER=${REDIS_SERVER:-redis-server}
-	fi
+	# fi
 
 	if ! is_command $REDIS_SERVER; then
 		echo "Cannot find $REDIS_SERVER. Aborting."

@@ -22,9 +22,24 @@ int ParseDuplicatePolicy(RedisModuleCtx *ctx,
                          const char *arg_prefix,
                          DuplicatePolicy *policy);
 
+const char *ChunkTypeToString(int options) {
+    if (options & SERIES_OPT_UNCOMPRESSED) {
+        return UNCOMPRESSED_ARG_STR;
+    }
+    if (options & SERIES_OPT_COMPRESSED_TURBOGORILLA) {
+        return COMPRESSED_TURBO_GORILLA_ARG_STR;
+    }
+    if (options & SERIES_OPT_COMPRESSED_GORILLA) {
+        return COMPRESSED_GORILLA_ARG_STR_OLD;
+    }
+    return "invalid";
+}
+
 int ReadConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     TSGlobalConfig.hasGlobalConfig = FALSE;
     TSGlobalConfig.options = 0;
+    // default chuck type
+    TSGlobalConfig.options |= SERIES_OPT_DEFAULT_COMPRESSION;
 
     if (argc > 1 && RMUtil_ArgIndex("COMPACTION_POLICY", argv, argc) >= 0) {
         RedisModuleString *policy;
@@ -33,16 +48,18 @@ int ReadConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
         if (RMUtil_ParseArgsAfter("COMPACTION_POLICY", argv, argc, "s", &policy) !=
             REDISMODULE_OK) {
+            RedisModule_Log(ctx, "warning", "Unable to parse argument after COMPACTION_POLICY");
             return TSDB_ERROR;
         }
         policy_cstr = RedisModule_StringPtrLen(policy, &len);
         if (ParseCompactionPolicy(policy_cstr,
                                   &TSGlobalConfig.compactionRules,
                                   &TSGlobalConfig.compactionRulesCount) != TRUE) {
+            RedisModule_Log(ctx, "warning", "Unable to parse argument after COMPACTION_POLICY");
             return TSDB_ERROR;
         }
 
-        RedisModule_Log(ctx, "verbose", "loaded default compaction policy: %s\n\r", policy_cstr);
+        RedisModule_Log(ctx, "notice", "loaded default compaction policy: %s", policy_cstr);
         TSGlobalConfig.hasGlobalConfig = TRUE;
     }
 
@@ -50,13 +67,12 @@ int ReadConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         if (RMUtil_ParseArgsAfter(
                 "RETENTION_POLICY", argv, argc, "l", &TSGlobalConfig.retentionPolicy) !=
             REDISMODULE_OK) {
+            RedisModule_Log(ctx, "warning", "Unable to parse argument after RETENTION_POLICY");
             return TSDB_ERROR;
         }
 
-        RedisModule_Log(ctx,
-                        "verbose",
-                        "loaded default retention policy: %lld \n",
-                        TSGlobalConfig.retentionPolicy);
+        RedisModule_Log(
+            ctx, "notice", "loaded default retention policy: %lld", TSGlobalConfig.retentionPolicy);
         TSGlobalConfig.hasGlobalConfig = TRUE;
     } else {
         TSGlobalConfig.retentionPolicy = RETENTION_TIME_DEFAULT;
@@ -66,24 +82,26 @@ int ReadConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         if (RMUtil_ParseArgsAfter(
                 "CHUNK_SIZE_BYTES", argv, argc, "l", &TSGlobalConfig.chunkSizeBytes) !=
             REDISMODULE_OK) {
+            RedisModule_Log(ctx, "warning", "Unable to parse argument after CHUNK_SIZE_BYTES");
             return TSDB_ERROR;
         }
     } else {
         TSGlobalConfig.chunkSizeBytes = Chunk_SIZE_BYTES_SECS;
     }
     RedisModule_Log(ctx,
-                    "verbose",
-                    "loaded default CHUNK_SIZE_BYTES policy: %lld \n",
+                    "notice",
+                    "loaded default CHUNK_SIZE_BYTES policy: %lld",
                     TSGlobalConfig.chunkSizeBytes);
 
     TSGlobalConfig.duplicatePolicy = DEFAULT_DUPLICATE_POLICY;
     if (ParseDuplicatePolicy(
             ctx, argv, argc, DUPLICATE_POLICY_ARG, &TSGlobalConfig.duplicatePolicy) != TSDB_OK) {
+        RedisModule_Log(ctx, "warning", "Unable to parse argument after DUPLICATE_POLICY");
         return TSDB_ERROR;
     }
     RedisModule_Log(ctx,
-                    "verbose",
-                    "loaded server DUPLICATE_POLICY: %s \n",
+                    "notice",
+                    "loaded server DUPLICATE_POLICY: %s",
                     DuplicatePolicyToString(TSGlobalConfig.duplicatePolicy));
 
     if (argc > 1 && RMUtil_ArgIndex("CHUNK_TYPE", argv, argc) >= 0) {
@@ -91,23 +109,30 @@ int ReadConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         size_t len;
         const char *chunk_type_cstr;
         if (RMUtil_ParseArgsAfter("CHUNK_TYPE", argv, argc, "s", &chunk_type) != REDISMODULE_OK) {
+            RedisModule_Log(ctx, "warning", "Unable to parse argument after CHUNK_TYPE");
             return TSDB_ERROR;
         }
         RMUtil_StringToLower(chunk_type);
         chunk_type_cstr = RedisModule_StringPtrLen(chunk_type, &len);
 
-        if (strncmp(chunk_type_cstr, "compressed", len) == 0) {
-            TSGlobalConfig.options =
-                0; // since we don't have any other options ATM its safe to use 0
-        } else if (strncmp(chunk_type_cstr, "uncompressed", len) == 0) {
+        if (strncmp(chunk_type_cstr, COMPRESSED_GORILLA_ARG_STR, len) == 0 ||
+            strncmp(chunk_type_cstr, COMPRESSED_GORILLA_ARG_STR_OLD, len) == 0) {
+            TSGlobalConfig.options &= ~SERIES_OPT_DEFAULT_COMPRESSION;
+            TSGlobalConfig.options |= SERIES_OPT_COMPRESSED_GORILLA;
+        } else if (strncmp(chunk_type_cstr, COMPRESSED_TURBO_GORILLA_ARG_STR, len) == 0) {
+            TSGlobalConfig.options &= ~SERIES_OPT_DEFAULT_COMPRESSION;
+            TSGlobalConfig.options |= SERIES_OPT_COMPRESSED_TURBOGORILLA;
+        } else if (strncmp(chunk_type_cstr, UNCOMPRESSED_ARG_STR, len) == 0) {
+            TSGlobalConfig.options &= ~SERIES_OPT_DEFAULT_COMPRESSION;
             TSGlobalConfig.options |= SERIES_OPT_UNCOMPRESSED;
         } else {
-            RedisModule_Log(ctx, "error", "unknown chunk type: %s \n", chunk_type_cstr);
+            printf("ERR\n");
+            RedisModule_Log(ctx, "warning", "unknown chunk type: %s\n", chunk_type_cstr);
             return TSDB_ERROR;
         }
-
-        RedisModule_Log(ctx, "verbose", "loaded default chunk type: %s \n", chunk_type_cstr);
     }
+    RedisModule_Log(
+        ctx, "notice", "Setting default chunk type: %s", ChunkTypeToString(TSGlobalConfig.options));
     return TSDB_OK;
 }
 
