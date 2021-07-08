@@ -12,7 +12,7 @@
 #define TRUE 1
 #define FALSE 0
 
-#define SAMPLE_SIZE sizeof(Sample)
+#define SAMPLE_SIZE (sizeof(u_int64_t)+sizeof(double))
 
 #define timestamp_t u_int64_t
 #define api_timestamp_t u_int64_t

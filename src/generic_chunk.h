@@ -80,7 +80,9 @@ typedef struct ChunkFuncs
     void (*GearsDeserialize)(Chunk_t **chunk, Gears_BufferReader *br);
 } ChunkFuncs;
 
-ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Sample *newSample);
+ChunkResult handleDuplicateSample(DuplicatePolicy policy,
+                                  const double oldSample,
+                                  double *newSample);
 const char *DuplicatePolicyToString(DuplicatePolicy policy);
 int RMStringLenDuplicationPolicyToEnum(RedisModuleString *aggTypeStr);
 DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len);

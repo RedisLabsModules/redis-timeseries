@@ -137,7 +137,8 @@ ChunkResult Compressed_UpsertSample(UpsertCtx *uCtx, int *size, DuplicatePolicy 
     }
 
     if (ts == iterSample.timestamp) {
-        ChunkResult cr = handleDuplicateSample(duplicatePolicy, iterSample, &uCtx->sample);
+        ChunkResult cr =
+            handleDuplicateSample(duplicatePolicy, iterSample.value, &uCtx->sample.value);
         if (cr != CR_OK) {
             Compressed_FreeChunkIterator(iter);
             Compressed_FreeChunk(newChunk);

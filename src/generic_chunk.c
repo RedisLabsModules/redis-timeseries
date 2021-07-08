@@ -68,7 +68,9 @@ static ChunkIterFuncs compressedChunkIteratorClass = {
 
 // This function will decide according to the policy how to handle duplicate sample, the `newSample`
 // will contain the data that will be kept in the database.
-ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Sample *newSample) {
+ChunkResult handleDuplicateSample(DuplicatePolicy policy,
+                                  const double oldSample,
+                                  double *newSample) {
     switch (policy) {
         case DP_BLOCK:
             return CR_ERR;
@@ -78,15 +80,15 @@ ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Samp
         case DP_LAST:
             return CR_OK;
         case DP_MIN:
-            if (oldSample.value < newSample->value)
-                newSample->value = oldSample.value;
+            if (oldSample < *newSample)
+                *newSample = oldSample;
             return CR_OK;
         case DP_MAX:
-            if (oldSample.value > newSample->value)
-                newSample->value = oldSample.value;
+            if (oldSample > *newSample)
+                *newSample = oldSample;
             return CR_OK;
         case DP_SUM:
-            newSample->value += oldSample.value;
+            *newSample += oldSample;
             return CR_OK;
         default:
             return CR_ERR;
