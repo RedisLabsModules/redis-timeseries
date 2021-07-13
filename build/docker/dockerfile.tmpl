@@ -1,15 +1,17 @@
-# BUILD redisfab/redistimeseries-${OSNICK}:M.m.b-${ARCH}
+# BUILD redisfab/redistimeseries:${VERSION}-${ARCH}-${OSNICK}
+
+ARG REDIS_VER={{REDIS_VERSION}}
 
 # stretch|bionic|buster
-ARG OSNICK=buster
+ARG OSNICK={{REDIS_OSNICK}}
 
-# ARCH=arm64v8|arm32v7
-ARG ARCH=arm64v8
+# ARCH=x64|arm64v8|arm32v7
+ARG ARCH={{REDIS_ARCH}}
 
 #----------------------------------------------------------------------------------------------
-FROM redisfab/redis-${ARCH}-${OSNICK}-xbuild:6.2.4 as builder
+FROM redisfab/redis:{{REDIS_VERSION}}-{{REDIS_ARCH}}-{{REDIS_OSNICK}} AS builder
 
-RUN [ "cross-build-start" ]
+ARG REDIS_VER
 
 ADD ./ /build
 WORKDIR /build
@@ -17,17 +19,12 @@ WORKDIR /build
 RUN ./deps/readies/bin/getpy3
 RUN ./system-setup.py
 RUN make fetch
-
-ENV X_NPROC "cat /proc/cpuinfo|grep processor|wc -l"
-RUN echo nproc=$(nproc); echo NPROC=$(eval "$X_NPROC")
 RUN make build
 
-RUN [ "cross-build-end" ]
-
 #----------------------------------------------------------------------------------------------
-FROM redisfab/redis-${ARCH}-${OSNICK}-xbuild:6.2.4
+FROM redisfab/redis:{{REDIS_VERSION}}-{{REDIS_ARCH}}-{{REDIS_OSNICK}}
 
-RUN [ "cross-build-start" ]
+ARG REDIS_VER
 
 ENV LIBDIR /usr/lib/redis/modules
 WORKDIR /data
@@ -37,5 +34,3 @@ COPY --from=builder /build/bin/redistimeseries.so "$LIBDIR"
 
 EXPOSE 6379
 CMD ["redis-server", "--loadmodule", "/usr/lib/redis/modules/redistimeseries.so"]
-
-RUN [ "cross-build-end" ]
