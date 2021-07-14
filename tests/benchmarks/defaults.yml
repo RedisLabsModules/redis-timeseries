@@ -9,3 +9,73 @@ exporter:
       - "$.Totals.overallQuantiles.all_queries.q99"
       - "$.Totals.overallQuantiles.all_queries.q100"
       - "$.Totals.overallQueryRates.all_queries"
+
+clusterconfig:
+  init_commands:
+  - commands:
+    - 'RG.REFRESHCLUSTER'
+    when_modules_present:
+    - redisgears.so
+
+spec:
+  setups:
+  - name: oss-standalone
+    type: oss-standalone
+    redis_topology:
+      primaries: 1
+      replicas: 0
+    resources:
+      requests:
+        cpu: "1000m"
+      limits:
+        cpu: "2000m"
+  - name: oss-cluster-3-primaries
+    type: oss-cluster
+    redis_topology:
+      primaries: 3
+      replicas: 0
+    resources:
+      requests:
+        cpu: "3000m"
+      limits:
+        cpu: "6000m"
+  - name: oss-cluster-5-primaries
+    type: oss-cluster
+    redis_topology:
+      primaries: 5
+      replicas: 0
+    resources:
+      requests:
+        cpu: "5000m"
+      limits:
+        cpu: "7000m"
+  - name: oss-cluster-9-primaries
+    type: oss-cluster
+    redis_topology:
+      primaries: 9
+      replicas: 0
+    resources:
+      requests:
+        cpu: "9000m"
+      limits:
+        cpu: "10000m"
+  - name: oss-cluster-15-primaries
+    type: oss-cluster
+    redis_topology:
+      primaries: 15
+      replicas: 0
+    resources:
+      requests:
+        cpu: "15000m"
+      limits:
+        cpu: "17000m"
+  - name: oss-cluster-30-primaries
+    type: oss-cluster
+    redis_topology:
+      primaries: 30
+      replicas: 0
+    resources:
+      requests:
+        cpu: "30000m"
+      limits:
+        cpu: "32000m"

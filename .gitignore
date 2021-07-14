@@ -20,3 +20,4 @@ venv/
 /BINDIR
 /tests/tests_report.xml
 site/
+/tests/benchmarks/profile_*

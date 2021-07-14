@@ -48,9 +48,11 @@ make test          # run tests
 
 make pack          # build packages (ramp & dependencies)
 
-make benchmarks        # run all benchmarks
-  BENCHMARK=filename   # run benchmark specified by 'filename'
-  BENCH_ARGS="..."     # redisbench_admin  extra arguments
+make benchmarks    # run all benchmarks
+  BENCHMARK=file   # run benchmark specified by 'filename'
+  BENCH_ARGS="..." # redisbench_admin  extra arguments
+  GEARS=0|1        # also load RedisGears
+  GEARS_PATH=path  # RedisGears module path
 endef
 
 #----------------------------------------------------------------------------------------------  
@@ -265,8 +267,13 @@ ifneq ($(REMOTE),)
 	BENCHMARK_ARGS = redisbench-admin run-remote 
 endif
 
+ifeq ($(GEARS),1)
+	BENCHMARK_ARGS += --module_path $(realpath $(GEARS_PATH))
+endif
+
 BENCHMARK_ARGS += --module_path $(realpath $(TARGET)) \
-				  --required-module timeseries
+				  --required-module timeseries \
+				  --dso $(realpath $(TARGET))
 ifneq ($(BENCHMARK),)
 	BENCHMARK_ARGS += --test $(BENCHMARK)
 endif
