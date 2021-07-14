@@ -88,4 +88,6 @@ DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len);
 ChunkFuncs *GetChunkClass(CHUNK_TYPES_T chunkClass);
 ChunkIterFuncs *GetChunkIteratorClass(CHUNK_TYPES_T chunkType);
 
+int timestamp_binary_search(const uint64_t *array, int size, uint64_t key);
+
 #endif // GENERIC__CHUNK_H

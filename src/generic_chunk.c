@@ -166,3 +166,24 @@ DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len) {
     }
     return DP_INVALID;
 }
+
+static int _ts_bs(const uint64_t *array, int start, int end, uint64_t key) {
+    // Determine the search point.
+    int searchPos = (start + end) / 2;
+    // If we crossed over our bounds or met in the middle, then it is not here.
+    if (start >= end)
+        return -1;
+    // Search the bottom half of the array if the query is smaller.
+    if (array[searchPos] > key)
+        return _ts_bs(array, start, searchPos - 1, key);
+    // Search the top half of the array if the query is larger.
+    if (array[searchPos] < key)
+        return _ts_bs(array, searchPos + 1, end, key);
+    // If we found it then we are done.
+    if (array[searchPos] == key)
+        return searchPos;
+}
+
+int timestamp_binary_search(const uint64_t *array, int size, uint64_t key) {
+    return _ts_bs(array, 0, size - 1, key);
+}
