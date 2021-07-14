@@ -210,3 +210,39 @@ def test_large_key_value_pairs():
         for kv_label in kv_labels:
             res = r.execute_command('TS.MRANGE', '-', '+', 'FILTER', kv_label1)
             assert len(res) == number_series
+
+
+def test_mrange_filter_by_ts():
+    env = Env()
+    with env.getClusterConnectionIfNeeded() as r:
+        assert r.execute_command('TS.ADD', 's1', 1, 100, 'LABELS', 'metric_family', 'cpu', 'metric_name', 'user')
+        assert r.execute_command('TS.ADD', 's2', 2, 40, 'LABELS', 'metric_family', 'cpu', 'metric_name', 'system')
+        assert r.execute_command('TS.ADD', 's1', 2, 95)
+        assert r.execute_command('TS.ADD', 's1', 10, 99)
+
+        results = r.execute_command("TS.MRANGE", "-", "+",
+                                    "FILTER_BY_TS", 4, 10,
+                                    "FILTER", "metric_family=cpu")
+        env.assertEqual(results[0][2][0], [10, b'99'])
+
+        results = r.execute_command("TS.MRANGE", "-", "+",
+                                    "FILTER_BY_TS", 10,
+                                    "FILTER", "metric_family=cpu")
+        env.assertEqual(results[0][2][0], [10, b'99'])
+
+        # ensure that spurious filters do not interfer with results
+        results = r.execute_command("TS.MRANGE", "-", "+",
+                                    "FILTER_BY_TS", 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+                                    "FILTER", "metric_family=cpu")
+        env.assertEqual(results[0][2][0], [10, b'99'])
+
+        # ensure that even when we pass unordered timestamps we're able to provide the same results
+        results = r.execute_command("TS.MRANGE", "-", "+",
+                                    "FILTER_BY_TS", 10, 4,
+                                    "FILTER", "metric_family=cpu")
+        env.assertEqual(results[0][2][0], [10, b'99'])
+
+        results = r.execute_command("TS.MRANGE", "-", "+",
+                                    "FILTER_BY_TS", 4, 2, 10,
+                                    "FILTER", "metric_family=cpu")
+        env.assertEqual(results[0][2][0], [2, b'95'])

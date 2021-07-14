@@ -256,7 +256,9 @@ static int parseFilterByTimestamp(RedisModuleCtx *ctx,
                 break;
             }
         }
+        // We sort the provided timestamps in order to improve query time filtering
         qsort(args->values, index, sizeof(uint64_t), comp_uint64);
+
         args->hasValue = (index > 0);
         args->count = index;
     }

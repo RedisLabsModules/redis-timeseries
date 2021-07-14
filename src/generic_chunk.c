@@ -171,7 +171,7 @@ static int _ts_bs(const uint64_t *array, int start, int end, uint64_t key) {
     // Determine the search point.
     int searchPos = (start + end) / 2;
     // If we crossed over our bounds or met in the middle, then it is not here.
-    if (start >= end)
+    if (start > end)
         return -1;
     // Search the bottom half of the array if the query is smaller.
     if (array[searchPos] > key)
