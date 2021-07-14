@@ -232,10 +232,10 @@ def test_large_key_value_pairs():
 def test_mrange_filter_by_ts():
     env = Env()
     with env.getClusterConnectionIfNeeded() as r:
-        assert r.execute_command('TS.ADD', 's1', 1, 100, 'LABELS', 'metric_family', 'cpu', 'metric_name', 'user')
-        assert r.execute_command('TS.ADD', 's2', 2, 40, 'LABELS', 'metric_family', 'cpu', 'metric_name', 'system')
-        assert r.execute_command('TS.ADD', 's1', 2, 95)
-        assert r.execute_command('TS.ADD', 's1', 10, 99)
+        assert r.execute_command('TS.ADD', '{host1}_m1', 1, 100, 'LABELS', 'metric_family', 'cpu', 'metric_name', 'user')
+        assert r.execute_command('TS.ADD', '{host1}_m2', 2, 40, 'LABELS', 'metric_family', 'cpu', 'metric_name', 'system')
+        assert r.execute_command('TS.ADD', '{host1}_m1', 2, 95)
+        assert r.execute_command('TS.ADD', '{host1}_m1', 10, 99)
 
         results = r.execute_command("TS.MRANGE", "-", "+",
                                     "FILTER_BY_TS", 4, 10,
