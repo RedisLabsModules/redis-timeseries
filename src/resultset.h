@@ -34,6 +34,8 @@ int ResultSet_AddSerie(TS_ResultSet *r, Series *serie, const char *name);
 void replyResultSet(RedisModuleCtx *ctx,
                     TS_ResultSet *r,
                     bool withlabels,
+                    RedisModuleString *limitLabels[],
+                    ushort limitLabelsSize,
                     RangeArgs *args,
                     bool rev);
 

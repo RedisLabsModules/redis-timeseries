@@ -8,7 +8,7 @@ def Env(*args, **kwargs):
     env = rltestEnv(*args, **kwargs)
     for shard in range(0, env.shardsCount):
         modules = env.getConnection(shard).execute_command('MODULE', 'LIST')
-        if not any(module for module in modules if module[1] == b'rg'):
+        if not any(module for module in modules if (module[1] == b'rg' or module[1] == 'rg')):
             break
         env.getConnection(shard).execute_command('RG.REFRESHCLUSTER')
     return env

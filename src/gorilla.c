@@ -490,21 +490,21 @@ static inline double readFloat(Compressed_Iterator *iter, const uint64_t *data) 
     return iter->prevValue.d = rv.d;
 }
 
-ChunkResult Compressed_ReadNext(Compressed_Iterator *iter, timestamp_t *timestamp, double *value) {
+ChunkResult Compressed_ChunkIteratorGetNext(ChunkIter_t *abstractIter, Sample *sample) {
+    Compressed_Iterator *iter = (Compressed_Iterator *)abstractIter;
 #ifdef DEBUG
     assert(iter);
     assert(iter->chunk);
 #endif
-    if (iter->count >= iter->chunk->count)
+    if (unlikely(iter->count >= iter->chunk->count))
         return CR_END;
     // First sample
-    if (__builtin_expect(iter->count == 0, 0)) {
-        *timestamp = iter->chunk->baseTimestamp;
-        *value = iter->chunk->baseValue.d;
-
+    if (unlikely(iter->count == 0)) {
+        sample->timestamp = iter->chunk->baseTimestamp;
+        sample->value = iter->chunk->baseValue.d;
     } else {
-        *timestamp = readInteger(iter, iter->chunk->data);
-        *value = readFloat(iter, iter->chunk->data);
+        sample->timestamp = readInteger(iter, iter->chunk->data);
+        sample->value = readFloat(iter, iter->chunk->data);
     }
     iter->count++;
     return CR_OK;

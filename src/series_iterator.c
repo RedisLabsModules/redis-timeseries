@@ -83,7 +83,11 @@ void SeriesIteratorClose(AbstractIterator *iterator) {
 
 // Fills sample from chunk. If all samples were extracted from the chunk, we
 // move to the next chunk.
-static inline ChunkResult _seriesIteratorGetNext(SeriesIterator *iterator, Sample *currentSample) {
+ChunkResult SeriesIteratorGetNext(AbstractIterator *abstractIterator, Sample *currentSample) {
+    SeriesIterator *iterator = (SeriesIterator *)abstractIterator;
+    if (unlikely(iterator->chunkIterator == NULL)) {
+        return CR_END;
+    }
     ChunkResult res;
     ChunkFuncs *funcs = iterator->series->funcs;
     Chunk_t *currentChunk = iterator->currentChunk;
@@ -91,10 +95,10 @@ static inline ChunkResult _seriesIteratorGetNext(SeriesIterator *iterator, Sampl
     const uint64_t itt_min_ts = iterator->minTimestamp;
     const int not_reverse = !iterator->reverse;
     timestamp_t timestamp = 0;
-    if (not_reverse) {
+    if (likely(not_reverse)) {
         while (TRUE) {
             res = SeriesGetNext(iterator, currentSample);
-            if (res == CR_END) { // Reached the end of the chunk
+            if (unlikely(res == CR_END)) { // Reached the end of the chunk
                 if (!iterator->DictGetNext(iterator->dictIter, NULL, (void *)&currentChunk) ||
                     funcs->GetFirstTimestamp(currentChunk) > itt_max_ts ||
                     funcs->GetLastTimestamp(currentChunk) < itt_min_ts) {
@@ -123,7 +127,7 @@ static inline ChunkResult _seriesIteratorGetNext(SeriesIterator *iterator, Sampl
     } else {
         while (TRUE) {
             res = SeriesGetPrevious(iterator, currentSample);
-            if (res == CR_END) { // Reached the end of the chunk
+            if (unlikely(res == CR_END)) { // Reached the end of the chunk
                 if (!iterator->DictGetNext(iterator->dictIter, NULL, (void *)&currentChunk) ||
                     funcs->GetFirstTimestamp(currentChunk) > itt_max_ts ||
                     funcs->GetLastTimestamp(currentChunk) < itt_min_ts) {
@@ -153,12 +157,4 @@ static inline ChunkResult _seriesIteratorGetNext(SeriesIterator *iterator, Sampl
         }
     }
     return CR_OK;
-}
-
-ChunkResult SeriesIteratorGetNext(AbstractIterator *iterator, Sample *currentSample) {
-    SeriesIterator *self = (SeriesIterator *)iterator;
-    if (self->chunkIterator == NULL) {
-        return CR_END;
-    }
-    return _seriesIteratorGetNext(self, currentSample);
 }

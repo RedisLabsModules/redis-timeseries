@@ -29,7 +29,6 @@ ChunkIter_t *Compressed_NewChunkIterator(Chunk_t *chunk,
                                          int options,
                                          ChunkIterFuncs *retChunkIterClass);
 void Compressed_ResetChunkIterator(ChunkIter_t *iterator, Chunk_t *chunk);
-ChunkResult Compressed_ChunkIteratorGetNext(ChunkIter_t *iter, Sample *sample);
 void Compressed_FreeChunkIterator(ChunkIter_t *iter);
 
 // Miscellaneous

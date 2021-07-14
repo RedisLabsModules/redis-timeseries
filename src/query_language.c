@@ -10,6 +10,12 @@
 #include "rmutil/strings.h"
 #include "rmutil/util.h"
 
+#define QUERY_TOKEN_SIZE 9
+static const char *QUERY_TOKENS[] = {
+    "WITHLABELS", "AGGREGATION",     "LIMIT",        "GROUPBY", "REDUCE",
+    "FILTER",     "FILTER_BY_VALUE", "FILTER_BY_TS", "COUNT",
+};
+
 int parseLabelsFromArgs(RedisModuleString **argv, int argc, size_t *label_count, Label **labels) {
     int pos = RMUtil_ArgIndex("LABELS", argv, argc);
     int first_label_pos = pos + 1;
@@ -409,6 +415,105 @@ int parseMultiSeriesReduceOp(const char *reducerstr, MultiSeriesReduceOp *reduce
     return TSDB_ERROR;
 }
 
+int parseLabelQuery(RedisModuleCtx *ctx,
+                    RedisModuleString **argv,
+                    int argc,
+                    bool *withLabels,
+                    RedisModuleString **limitLabels,
+                    unsigned short *limitLabelsSize) {
+    *withLabels = RMUtil_ArgIndex("WITHLABELS", argv, argc) > 0;
+    const int limit_location = RMUtil_ArgIndex("SELECTED_LABELS", argv, argc);
+    if (limit_location > 0 && *withLabels) {
+        RTS_ReplyGeneralError(ctx, "TSDB: cannot accept WITHLABELS and SELECT_LABELS together");
+        return REDISMODULE_ERR;
+    }
+
+    if (limit_location > 0) {
+        size_t count = 0;
+        for (int i = limit_location + 1; i < argc; i++) {
+            size_t len;
+            const char *c_str = RedisModule_StringPtrLen(argv[i], &len);
+            bool found = false;
+            for (int j = 0; j < QUERY_TOKEN_SIZE; ++j) {
+                if (strcasecmp(QUERY_TOKENS[j], c_str) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                break;
+            }
+            if (count >= LIMIT_LABELS_SIZE) {
+                RTS_ReplyGeneralError(ctx, "TSDB: reached max size for SELECT_LABELS");
+                return REDISMODULE_ERR;
+            }
+            limitLabels[count] = argv[i];
+            count++;
+        }
+        if (count == 0) {
+            RTS_ReplyGeneralError(ctx, "TSDB: SELECT_LABELS should have at least 1 parameter");
+            return REDISMODULE_ERR;
+        }
+        *limitLabelsSize = count;
+    }
+    return REDISMODULE_OK;
+}
+
+int parseFilter(RedisModuleCtx *ctx,
+                RedisModuleString **argv,
+                int argc,
+                int filter_location,
+                int query_count,
+                QueryPredicateList **out) {
+    int response;
+    QueryPredicateList *queries = NULL;
+
+    queries = parseLabelListFromArgs(ctx, argv, filter_location + 1, query_count, &response);
+    if (response == TSDB_ERROR) {
+        QueryPredicateList_Free(queries);
+        RTS_ReplyGeneralError(ctx, "TSDB: failed parsing labels");
+        return REDISMODULE_ERR;
+    }
+
+    if (CountPredicateType(queries, EQ) + CountPredicateType(queries, LIST_MATCH) == 0) {
+        QueryPredicateList_Free(queries);
+        RTS_ReplyGeneralError(ctx, "TSDB: please provide at least one matcher");
+        return REDISMODULE_ERR;
+    }
+    *out = queries;
+    return REDISMODULE_OK;
+}
+
+int parseMGetCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, MGetArgs *out) {
+    MGetArgs args = { 0 };
+    if (argc < 3) {
+        RedisModule_WrongArity(ctx);
+        return REDISMODULE_ERR;
+    }
+
+    int filter_location = RMUtil_ArgIndex("FILTER", argv, argc);
+    if (filter_location == -1) {
+        RedisModule_WrongArity(ctx);
+        return REDISMODULE_ERR;
+    }
+    size_t query_count = argc - 1 - filter_location;
+
+    if (parseLabelQuery(
+            ctx, argv, argc, &args.withLabels, args.limitLabels, &args.numLimitLabels) ==
+        REDISMODULE_ERR) {
+        return REDISMODULE_ERR;
+    }
+
+    QueryPredicateList *queries;
+    if (parseFilter(ctx, argv, argc, filter_location, query_count, &queries) != REDISMODULE_OK) {
+        return REDISMODULE_ERR;
+    }
+
+    args.queryPredicates = queries;
+    *out = args;
+    return REDISMODULE_OK;
+}
+
 int parseMRangeCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, MRangeArgs *out) {
     if (argc < 4) {
         RedisModule_WrongArity(ctx);
@@ -418,6 +523,7 @@ int parseMRangeCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, 
     MRangeArgs args;
     args.groupByLabel = NULL;
     args.queryPredicates = NULL;
+    args.numLimitLabels = 0;
 
     if (parseRangeArguments(ctx, 1, argv, argc, LLONG_MAX, &args.rangeArgs) != REDISMODULE_OK) {
         return REDISMODULE_ERR;
@@ -429,7 +535,7 @@ int parseMRangeCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, 
         return REDISMODULE_ERR;
     }
 
-    args.withLabels = RMUtil_ArgIndex("WITHLABELS", argv, argc) > 0;
+    parseLabelQuery(ctx, argv, argc, &args.withLabels, args.limitLabels, &args.numLimitLabels);
 
     const int groupby_location = RMUtil_ArgIndex("GROUPBY", argv, argc);
 
@@ -443,21 +549,10 @@ int parseMRangeCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, 
         return REDISMODULE_ERR;
     }
 
-    int response;
-    QueryPredicateList *queries =
-        parseLabelListFromArgs(ctx, argv, filter_location + 1, query_count, &response);
-    if (response == TSDB_ERROR) {
-        QueryPredicateList_Free(queries);
-        RTS_ReplyGeneralError(ctx, "TSDB: failed parsing labels");
+    QueryPredicateList *queries = NULL;
+    if (parseFilter(ctx, argv, argc, filter_location, query_count, &queries) != REDISMODULE_OK) {
         return REDISMODULE_ERR;
     }
-
-    if (CountPredicateType(queries, EQ) + CountPredicateType(queries, LIST_MATCH) == 0) {
-        QueryPredicateList_Free(queries);
-        RTS_ReplyGeneralError(ctx, "TSDB: please provide at least one matcher");
-        return REDISMODULE_ERR;
-    }
-
     args.queryPredicates = queries;
 
     if (groupby_location > 0) {
@@ -489,5 +584,9 @@ int parseMRangeCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, 
 }
 
 void MRangeArgs_Free(MRangeArgs *args) {
+    QueryPredicateList_Free(args->queryPredicates);
+}
+
+void MGetArgs_Free(MGetArgs *args) {
     QueryPredicateList_Free(args->queryPredicates);
 }

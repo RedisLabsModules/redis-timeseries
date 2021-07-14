@@ -17,12 +17,16 @@
 int ReplySeriesArrayPos(RedisModuleCtx *ctx,
                         Series *s,
                         bool withlabels,
+                        RedisModuleString *limitLabels[],
+                        ushort limitLabelsSize,
                         RangeArgs *args,
                         bool rev) {
     RedisModule_ReplyWithArray(ctx, 3);
     RedisModule_ReplyWithString(ctx, s->keyName);
     if (withlabels) {
         ReplyWithSeriesLabels(ctx, s);
+    } else if (limitLabelsSize > 0) {
+        ReplyWithSeriesLabelsWithLimit(ctx, s, limitLabels, limitLabelsSize);
     } else {
         RedisModule_ReplyWithArray(ctx, 0);
     }
@@ -58,6 +62,55 @@ int ReplySeriesRange(RedisModuleCtx *ctx, Series *series, RangeArgs *args, bool 
 
     RedisModule_ReplySetArrayLength(ctx, arraylen);
     return REDISMODULE_OK;
+}
+
+bool static filterKey(RedisModuleString *key,
+                      RedisModuleString *limitLabels[],
+                      ushort limitLabelsSize) {
+    for (int i = 0; i < limitLabelsSize; ++i) {
+        if (RedisModule_StringCompare(key, limitLabels[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ReplyWithSeriesLabelsWithLimit(RedisModuleCtx *ctx,
+                                    const Series *series,
+                                    RedisModuleString **limitLabels,
+                                    ushort limitLabelsSize) {
+    char **limitLabelsStr = malloc(sizeof(char *) * limitLabelsSize);
+    for (int i = 0; i < limitLabelsSize; i++) {
+        limitLabelsStr[i] = RedisModule_StringPtrLen(limitLabels[i], NULL);
+    }
+    ReplyWithSeriesLabelsWithLimitC(ctx, series, limitLabelsStr, limitLabelsSize);
+    free(limitLabelsStr);
+}
+
+void ReplyWithSeriesLabelsWithLimitC(RedisModuleCtx *ctx,
+                                     const Series *series,
+                                     char **limitLabels,
+                                     ushort limitLabelsSize) {
+    long count = 0;
+    RedisModule_ReplyWithArray(ctx, limitLabelsSize);
+    for (int i = 0; i < limitLabelsSize; i++) {
+        bool found = false;
+        for (int j = 0; j < series->labelsCount; ++j) {
+            const char *key = RedisModule_StringPtrLen(series->labels[j].key, NULL);
+            if (strcasecmp(key, limitLabels[i]) == 0) {
+                RedisModule_ReplyWithArray(ctx, 2);
+                RedisModule_ReplyWithString(ctx, series->labels[j].key);
+                RedisModule_ReplyWithString(ctx, series->labels[j].value);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            RedisModule_ReplyWithArray(ctx, 2);
+            RedisModule_ReplyWithCString(ctx, limitLabels[i]);
+            RedisModule_ReplyWithNull(ctx);
+        }
+    }
 }
 
 void ReplyWithSeriesLabels(RedisModuleCtx *ctx, const Series *series) {

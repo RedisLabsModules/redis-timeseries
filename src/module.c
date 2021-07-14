@@ -236,7 +236,13 @@ static int replyGroupedMultiRange(RedisModuleCtx *ctx,
     minimizedArgs.filterByTSArgs.hasValue = false;
     minimizedArgs.filterByValueArgs.hasValue = false;
 
-    replyResultSet(ctx, resultset, args->withLabels, &minimizedArgs, args->reverse);
+    replyResultSet(ctx,
+                   resultset,
+                   args->withLabels,
+                   args->limitLabels,
+                   args->numLimitLabels,
+                   &minimizedArgs,
+                   args->reverse);
 
     ResultSet_Free(resultset);
     return REDISMODULE_OK;
@@ -271,7 +277,13 @@ static int replyUngroupedMultiRange(RedisModuleCtx *ctx,
             iter = RedisModule_DictIteratorStartC(result, ">", currentKey, currentKeyLen);
             continue;
         }
-        ReplySeriesArrayPos(ctx, series, args->withLabels, &args->rangeArgs, args->reverse);
+        ReplySeriesArrayPos(ctx,
+                            series,
+                            args->withLabels,
+                            args->limitLabels,
+                            args->numLimitLabels,
+                            &args->rangeArgs,
+                            args->reverse);
         replylen++;
         RedisModule_CloseKey(key);
     }
@@ -841,30 +853,18 @@ int TSDB_mget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
     RedisModule_AutoMemory(ctx);
 
-    if (argc < 3) {
-        return RedisModule_WrongArity(ctx);
+    MGetArgs args;
+    if (parseMGetCommand(ctx, argv, argc, &args) != REDISMODULE_OK) {
+        return REDISMODULE_ERR;
     }
 
-    int filter_location = RMUtil_ArgIndex("FILTER", argv, argc);
-    if (filter_location == -1) {
-        return RedisModule_WrongArity(ctx);
-    }
-    size_t query_count = argc - 1 - filter_location;
-    const int withlabels_location = RMUtil_ArgIndex("WITHLABELS", argv, argc);
-    int response = 0;
-    QueryPredicateList *queries =
-        parseLabelListFromArgs(ctx, argv, filter_location + 1, query_count, &response);
-    if (response == TSDB_ERROR) {
-        QueryPredicateList_Free(queries);
-        return RTS_ReplyGeneralError(ctx, "TSDB: failed parsing labels");
+    const char **limitLabelsStr = calloc(args.numLimitLabels, sizeof(char *));
+    for (int i = 0; i < args.numLimitLabels; i++) {
+        limitLabelsStr[i] = RedisModule_StringPtrLen(args.limitLabels[i], NULL);
     }
 
-    if (CountPredicateType(queries, EQ) + CountPredicateType(queries, LIST_MATCH) == 0) {
-        QueryPredicateList_Free(queries);
-        return RTS_ReplyGeneralError(ctx, "TSDB: please provide at least one matcher");
-    }
-
-    RedisModuleDict *result = QueryIndex(ctx, queries->list, queries->count);
+    RedisModuleDict *result =
+        QueryIndex(ctx, args.queryPredicates->list, args.queryPredicates->count);
     RedisModule_ReplyWithArray(ctx, REDISMODULE_POSTPONED_ARRAY_LEN);
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(result, "^", NULL, 0);
     char *currentKey;
@@ -888,8 +888,10 @@ int TSDB_mget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         }
         RedisModule_ReplyWithArray(ctx, 3);
         RedisModule_ReplyWithStringBuffer(ctx, currentKey, currentKeyLen);
-        if (withlabels_location >= 0) {
+        if (args.withLabels) {
             ReplyWithSeriesLabels(ctx, series);
+        } else if (args.numLimitLabels > 0) {
+            ReplyWithSeriesLabelsWithLimitC(ctx, series, limitLabelsStr, args.numLimitLabels);
         } else {
             RedisModule_ReplyWithArray(ctx, 0);
         }
@@ -899,7 +901,8 @@ int TSDB_mget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
     RedisModule_ReplySetArrayLength(ctx, replylen);
     RedisModule_DictIteratorStop(iter);
-    QueryPredicateList_Free(queries);
+    MGetArgs_Free(&args);
+    free(limitLabelsStr);
     return REDISMODULE_OK;
 }
 

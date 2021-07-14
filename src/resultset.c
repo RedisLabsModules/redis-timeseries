@@ -41,6 +41,8 @@ void GroupList_ApplyReducer(TS_GroupList *group,
 void GroupList_ReplyResultSet(RedisModuleCtx *ctx,
                               TS_GroupList *group,
                               bool withlabels,
+                              RedisModuleString *limitLabels[],
+                              ushort limitLabelsSize,
                               RangeArgs *args,
                               bool reverse);
 
@@ -95,10 +97,13 @@ int GroupList_AddSerie(TS_GroupList *g, Series *serie, const char *name) {
 void GroupList_ReplyResultSet(RedisModuleCtx *ctx,
                               TS_GroupList *group,
                               bool withlabels,
+                              RedisModuleString *limitLabels[],
+                              ushort limitLabelsSize,
                               RangeArgs *args,
                               bool rev) {
     for (int i = 0; i < group->count; i++) {
-        ReplySeriesArrayPos(ctx, group->list[i], withlabels, args, rev);
+        ReplySeriesArrayPos(
+            ctx, group->list[i], withlabels, limitLabels, limitLabelsSize, args, rev);
     }
 }
 
@@ -227,6 +232,8 @@ int ResultSet_AddSerie(TS_ResultSet *r, Series *serie, const char *name) {
 void replyResultSet(RedisModuleCtx *ctx,
                     TS_ResultSet *r,
                     bool withlabels,
+                    RedisModuleString *limitLabels[],
+                    ushort limitLabelsSize,
                     RangeArgs *args,
                     bool rev) {
     RedisModuleDictIter *iter = RedisModule_DictIteratorStartC(r->groups, "^", NULL, 0);
@@ -234,7 +241,8 @@ void replyResultSet(RedisModuleCtx *ctx,
     RedisModule_ReplyWithArray(ctx, RedisModule_DictSize(r->groups));
     TS_GroupList *innerGroupList;
     while (RedisModule_DictNextC(iter, NULL, (void **)&innerGroupList) != NULL) {
-        GroupList_ReplyResultSet(ctx, innerGroupList, withlabels, args, rev);
+        GroupList_ReplyResultSet(
+            ctx, innerGroupList, withlabels, limitLabels, limitLabelsSize, args, rev);
     }
 
     RedisModule_DictIteratorStop(iter);

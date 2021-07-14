@@ -60,3 +60,9 @@ def test_errors():
             assert r.execute_command('TS.ADD', 'values', 'timestamp', '5')  # string
         with pytest.raises(redis.ResponseError) as excinfo:
             assert r.execute_command('TS.ADD', 'values', '*', 'value')  # string
+        with pytest.raises(redis.ResponseError) as excinfo:
+            labels = ["abc"] * 51
+            assert r.execute_command('TS.MGET', 'SELECTED_LABELS', *labels, 'FILTER', 'metric=cpu')
+        with pytest.raises(redis.ResponseError) as excinfo:
+            labels = ["abc"] * 51
+            assert r.execute_command('TS.MRANGE', 'SELECTED_LABELS', *labels, 'FILTER', 'metric=cpu')

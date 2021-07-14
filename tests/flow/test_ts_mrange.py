@@ -113,6 +113,17 @@ def test_range_by_labels():
         with pytest.raises(redis.ResponseError) as excinfo:
             assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'FILTER', 'name=(bob,,rudy)')
 
+        # test SELECTED_LABELS
+        with pytest.raises(redis.ResponseError) as excinfo:
+            assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'SELECTED_LABELS', 'filter', 'k!=5')
+        with pytest.raises(redis.ResponseError) as excinfo:
+            assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'SELECTED_LABELS', 'filter', 'k!=5')
+        with pytest.raises(redis.ResponseError) as excinfo:
+            assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'SELECTED_LABELS', 'WITHLABELS', 'filter', 'k!=5')
+        with pytest.raises(redis.ResponseError) as excinfo:
+            assert r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'WITHLABELS', 'SELECTED_LABELS', 'filter', 'k!=5')
+
+
 def test_mrange_filterby():
     start_ts = 1511885909
     samples_count = 50
@@ -165,6 +176,12 @@ def test_mrange_withlabels():
                                           'name=bob')
         assert [[b'tester1', [[b'name', b'bob'], [b'class', b'middle'], [b'generation', b'x']],
                  expected_result]] == actual_result
+
+        actual_result = r.execute_command('TS.mrange', start_ts, start_ts + samples_count, 'SELECTED_LABELS', 'name', 'generation', 'FILTER',
+                                          'name=bob')
+        assert [[b'tester1', [[b'name', b'bob'], [b'generation', b'x']],
+                 expected_result]] == actual_result
+
         actual_result = r.execute_command('TS.mrange', start_ts + 1, start_ts + samples_count, 'WITHLABELS',
                                           'AGGREGATION', 'COUNT', 1, 'FILTER', 'generation=x')
         # assert the labels length is 3 (name,class,generation) for each of the returned time-series

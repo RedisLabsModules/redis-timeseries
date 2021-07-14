@@ -15,6 +15,8 @@ typedef struct QueryPredicates_Arg
     timestamp_t endTimestamp;
     size_t count;
     bool withLabels;
+    unsigned short limitLabelsSize;
+    RedisModuleString **limitLabels;
 } QueryPredicates_Arg;
 
 typedef struct SeriesRecord

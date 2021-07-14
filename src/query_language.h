@@ -56,15 +56,26 @@ typedef enum MultiSeriesReduceOp
     MultiSeriesReduceOp_Sum,
 } MultiSeriesReduceOp;
 
+#define LIMIT_LABELS_SIZE 50
 typedef struct MRangeArgs
 {
     RangeArgs rangeArgs;
     bool withLabels;
+    unsigned short numLimitLabels;
+    RedisModuleString *limitLabels[LIMIT_LABELS_SIZE];
     QueryPredicateList *queryPredicates;
     const char *groupByLabel;
     MultiSeriesReduceOp gropuByReducerOp;
     bool reverse;
 } MRangeArgs;
+
+typedef struct MGetArgs
+{
+    bool withLabels;
+    unsigned short numLimitLabels;
+    RedisModuleString *limitLabels[LIMIT_LABELS_SIZE];
+    QueryPredicateList *queryPredicates;
+} MGetArgs;
 
 typedef struct CreateCtx
 {
@@ -94,6 +105,13 @@ int _parseAggregationArgs(RedisModuleCtx *ctx,
                           api_timestamp_t *time_delta,
                           int *agg_type);
 
+int parseLabelQuery(RedisModuleCtx *ctx,
+                    RedisModuleString **argv,
+                    int argc,
+                    bool *withLabels,
+                    RedisModuleString **limitLabels,
+                    unsigned short *limitLabelsSize);
+
 int parseAggregationArgs(RedisModuleCtx *ctx,
                          RedisModuleString **argv,
                          int argc,
@@ -114,5 +132,8 @@ QueryPredicateList *parseLabelListFromArgs(RedisModuleCtx *ctx,
 
 int parseMRangeCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, MRangeArgs *out);
 void MRangeArgs_Free(MRangeArgs *args);
+
+int parseMGetCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, MGetArgs *out);
+void MGetArgs_Free(MGetArgs *args);
 
 #endif // REDISTIMESERIES_QUERY_LANGUAGE_H
