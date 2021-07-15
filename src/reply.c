@@ -64,17 +64,6 @@ int ReplySeriesRange(RedisModuleCtx *ctx, Series *series, RangeArgs *args, bool 
     return REDISMODULE_OK;
 }
 
-bool static filterKey(RedisModuleString *key,
-                      RedisModuleString *limitLabels[],
-                      ushort limitLabelsSize) {
-    for (int i = 0; i < limitLabelsSize; ++i) {
-        if (RedisModule_StringCompare(key, limitLabels[i]) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 void ReplyWithSeriesLabelsWithLimit(RedisModuleCtx *ctx,
                                     const Series *series,
                                     RedisModuleString **limitLabels,
