@@ -26,6 +26,7 @@ static void QueryPredicates_ObjectFree(void *arg) {
     QueryPredicates_Arg *predicate_list = arg;
 
     QueryPredicateList_Free(predicate_list->predicates);
+    free(predicate_list->limitLabels);
     free(predicate_list);
 }
 

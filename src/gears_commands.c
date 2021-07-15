@@ -155,7 +155,9 @@ int TSDB_mrange_RG(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, bool
     queryArg->predicates = args.queryPredicates;
     queryArg->withLabels = args.withLabels;
     queryArg->limitLabelsSize = args.numLimitLabels;
-    queryArg->limitLabels = args.limitLabels;
+    queryArg->limitLabels = calloc(args.numLimitLabels, sizeof(RedisModuleString *));
+    memcpy(
+        queryArg->limitLabels, args.limitLabels, sizeof(RedisModuleString *) * args.numLimitLabels);
     RedisGears_FlatMap(rg_ctx, "ShardSeriesMapper", queryArg);
     RGM_Collect(rg_ctx);
 
