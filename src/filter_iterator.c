@@ -24,13 +24,8 @@ static bool check_sample_timestamp(Sample sample, FilterByTSArgs byTsArgs) {
     if (!byTsArgs.hasValue) {
         return true;
     }
-
-    for (int i = 0; i < byTsArgs.count; i++) {
-        if (sample.timestamp == byTsArgs.values[i]) {
-            return true;
-        }
-    }
-    return false;
+    return timestamp_binary_search(byTsArgs.values, byTsArgs.count, sample.timestamp) == -1 ? false
+                                                                                            : true;
 }
 
 ChunkResult SeriesFilterIterator_GetNext(struct AbstractIterator *base, Sample *currentSample) {

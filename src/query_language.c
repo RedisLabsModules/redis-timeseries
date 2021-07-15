@@ -231,6 +231,14 @@ static int parseFilterByValueArgument(RedisModuleCtx *ctx,
     return TSDB_OK;
 }
 
+int comp_uint64(const void *a, const void *b) {
+    if (*((uint64_t *)a) > *((uint64_t *)b))
+        return (+1);
+    if (*((uint64_t *)a) < *((uint64_t *)b))
+        return (-1);
+    return (0);
+}
+
 static int parseFilterByTimestamp(RedisModuleCtx *ctx,
                                   RedisModuleString **argv,
                                   int argc,
@@ -254,6 +262,8 @@ static int parseFilterByTimestamp(RedisModuleCtx *ctx,
                 break;
             }
         }
+        // We sort the provided timestamps in order to improve query time filtering
+        qsort(args->values, index, sizeof(uint64_t), comp_uint64);
 
         args->hasValue = (index > 0);
         args->count = index;

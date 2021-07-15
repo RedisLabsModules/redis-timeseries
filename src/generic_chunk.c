@@ -166,3 +166,25 @@ DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len) {
     }
     return DP_INVALID;
 }
+int timestamp_binary_search(const uint64_t *array, int size, uint64_t key) {
+    int l = 0, r = size;
+    while (l <= r) {
+        const int m = l + (r - l) / 2;
+
+        // If we found it then we are done.
+        if (array[m] == key)
+            return m;
+
+        // Search the top half of the array if the query is larger.
+        if (array[m] < key) {
+            l = m + 1;
+        }
+
+        else {
+            // Search the bottom half of the array if the query is smaller.
+            r = m - 1;
+        }
+    }
+    // if we reach here, then element was not present
+    return -1;
+}
